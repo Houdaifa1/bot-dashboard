@@ -1,4 +1,5 @@
-import { ReactNode, useEffect } from 'react'
+import { useEffect } from 'react'
+import type { ReactNode } from 'react'
 import { X, Loader2, Inbox, AlertTriangle } from 'lucide-react'
 import type { AppointmentStatus } from '../../types'
 import type { Lang, TKey } from '../../i18n'

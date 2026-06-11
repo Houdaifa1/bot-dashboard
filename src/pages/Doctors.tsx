@@ -70,12 +70,13 @@ function DoctorModal({
     }
   }, [open, initial])
 
+  const isEditing = !!initial
+
   const set = (field: keyof DoctorForm, value: any) => {
     setForm(f => ({ ...f, [field]: value }))
     setDirty(true)
   }
 
-  const isEditing = !!initial
   const title = isEditing
     ? `${t(lang, 'edit')} ${initial?.name ?? ''}`
     : t(lang, 'doc_add')
@@ -195,7 +196,6 @@ function SlotModal({
     setDirty(true)
   }
 
-  const isEditing = !!initial
 
   return (
     <Modal open={open} onClose={onClose} title={t(lang, 'slot_add')} size="sm">
