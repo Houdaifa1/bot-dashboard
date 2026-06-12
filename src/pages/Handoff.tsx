@@ -40,8 +40,16 @@ export function HandoffPage() {
   }
 
   const formatPhone = (phone: string) => {
-    // Strip JID suffixes and format for display
-    return phone.replace(/@(lid|s\.whatsapp\.net)$/, '').replace(/(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/, '$1 $2 $3 $4 $5')
+    // Strip JID suffixes
+    const raw = phone.replace(/@(lid|s\.whatsapp\.net)$/, '')
+
+    // If it looks like a Moroccan number (starts with 212, 12 digits), format as +212 X XX XX XX XX
+    if (/^212\d{9}$/.test(raw)) {
+      return `+${raw.slice(0, 3)} ${raw[3]} ${raw.slice(4, 6)} ${raw.slice(6, 8)} ${raw.slice(8, 10)} ${raw.slice(10, 12)}`
+    }
+
+    // For LID or other formats, group digits in pairs for readability
+    return raw.replace(/(\d{2})(?=\d)/g, '$1 ')
   }
 
   const formatTime = (timestamp: number) => {
