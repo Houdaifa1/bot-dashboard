@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Loader2, Phone, CheckCircle2, AlertTriangle } from 'lucide-react'
 import { getHandoffSessions, resolveHandoff } from '../api'
