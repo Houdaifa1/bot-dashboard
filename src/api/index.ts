@@ -89,5 +89,7 @@ export const updateAppointmentStatus = (id: string, status: string) =>
   api.patch(`/api/admin/v1/appointments/${id}/status`, { status }).then(r => r.data)
 
 // Handoff
+export const getHandoffSessions = () =>
+  api.get('/api/admin/v1/handoff').then(r => r.data)
 export const resolveHandoff = (phone: string) =>
   api.post('/api/admin/v1/handoff/resolve', { phone }).then(r => r.data)
