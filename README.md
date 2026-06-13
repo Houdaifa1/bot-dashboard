@@ -19,7 +19,7 @@ Built with **React**, **TypeScript**, **Tailwind CSS**, and **Vite**.
 
 | Feature | Description |
 |---|---|
-| 📊 **Dashboard** | Real-time statistics — appointments, active doctors, pending cases |
+| 📊 **Dashboard** | Real-time statistics — appointments, active doctors,  pending cases |
 | 🏥 **Clinic Management** | Edit clinic info, phone, address, timezone, and supported languages |
 | 💬 **Bot Messages** | Configure multilingual chatbot responses and conversation flows |
 | 🩺 **Specialties** | Create and organize medical specialties with ordering and i18n |
