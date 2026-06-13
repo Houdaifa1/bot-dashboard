@@ -103,31 +103,3 @@ export const getHandoffSessions = () =>
   api.get('/api/admin/v1/handoff').then(r => r.data)
 export const resolveHandoff = (phone: string) =>
   api.post('/api/admin/v1/handoff/resolve', { phone }).then(r => r.data)
-
-// Flows
-export const getFlows = () =>
-  api.get('/api/admin/v1/flows').then(r => r.data)
-export const getFlow = (id: string) =>
-  api.get(`/api/admin/v1/flows/${id}`).then(r => r.data)
-export const createFlow = (data: { name: string }) =>
-  api.post('/api/admin/v1/flows', data).then(r => r.data)
-export const updateFlow = (id: string, data: { name: string }) =>
-  api.put(`/api/admin/v1/flows/${id}`, data).then(r => r.data)
-export const deleteFlow = (id: string) =>
-  api.delete(`/api/admin/v1/flows/${id}`).then(r => r.data)
-export const activateFlow = (id: string) =>
-  api.post(`/api/admin/v1/flows/${id}/activate`).then(r => r.data)
-export const deactivateFlow = () =>
-  api.post('/api/admin/v1/flows/deactivate').then(r => r.data)
-export const getActiveFlow = () =>
-  api.get('/api/admin/v1/flows/active').then(r => r.data)
-
-// Flow Nodes
-export const addFlowNode = (flowId: string, data: any) =>
-  api.post(`/api/admin/v1/flows/${flowId}/nodes`, data).then(r => r.data)
-export const updateFlowNode = (flowId: string, nodeId: string, data: any) =>
-  api.put(`/api/admin/v1/flows/${flowId}/nodes/${nodeId}`, data).then(r => r.data)
-export const deleteFlowNode = (flowId: string, nodeId: string) =>
-  api.delete(`/api/admin/v1/flows/${flowId}/nodes/${nodeId}`).then(r => r.data)
-export const reorderFlowNodes = (flowId: string, nodeIds: string[]) =>
-  api.patch(`/api/admin/v1/flows/${flowId}/nodes/reorder`, { nodeIds }).then(r => r.data)

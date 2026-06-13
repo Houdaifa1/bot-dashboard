@@ -13,7 +13,7 @@ export interface Specialty {
   id: string; clinicId: string; label: string; language: string;
   slug: string; isActive: boolean; displayOrder: number; createdAt: string;
   updatedAt?: string;
-}
+}b
 
 export interface Doctor {
   id: string; clinicId: string; specialtyId: string; name: string;
@@ -43,6 +43,7 @@ export interface Appointment {
 
 export type AppointmentStatus = 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'COMPLETED' | 'NO_SHOW'
 
+
 export interface Stats {
   totalAppointments: number;
   todayAppointments: number;
@@ -57,38 +58,4 @@ export interface AdminUser {
 
 export interface LoginResponse {
   access_token: string; admin: AdminUser;
-}
-
-// ─── Flow Engine Types ─────────────────────────────────────────────────────
-export interface FlowNode {
-  id: string;
-  flowId: string;
-  type: NodeType;
-  label: string;
-  config: Record<string, any>;
-  position: number;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export type NodeType =
-  | 'TEXT'
-  | 'BUTTONS'
-  | 'LIST'
-  | 'SPECIALTY_LIST'
-  | 'DOCTOR_LIST'
-  | 'DATE_PICKER'
-  | 'TIME_PICKER'
-  | 'FREE_TEXT_INPUT'
-  | 'CONDITION'
-  | 'BOOK_APPOINTMENT'
-  | 'END';
-
-export interface Flow {
-  id: string;
-  clinicId: string;
-  name: string;
-  createdAt: string;
-  updatedAt: string;
-  nodes: FlowNode[];
 }
