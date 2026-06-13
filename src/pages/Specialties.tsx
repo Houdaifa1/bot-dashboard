@@ -214,18 +214,6 @@ export function SpecialtiesPage() {
     onError: () => toast(t(lang, 'errorSaving'), 'error'),
   })
 
-  const createMissingMut = useMutation({
-    mutationFn: (data: { label: string; slug: string; language: string; displayOrder: number }) =>
-      createSpecialty(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['specialties'] })
-      toast(t(lang, 'spec_updated'), 'success')
-      setModalOpen(false)
-      setEditing(null)
-    },
-    onError: () => toast(t(lang, 'errorSaving'), 'error'),
-  })
-
   const handleSave = (form: GroupForm) => {
     if (editing) {
       const updates: { id: string; data: Partial<Specialty> }[] = []

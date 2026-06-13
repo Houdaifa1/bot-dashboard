@@ -426,8 +426,6 @@ export function BotMessagesPage() {
   const { lang, admin } = useAuth()
   const clinicId = admin!.clinicId
   const [search, setSearch] = useState('')
-  const queryClient = useQueryClient()
-  const { toast } = useToast()
 
   // Fetch FR messages
   const { data: frMessages, isLoading: frLoading, isError: frError, refetch: refetchFr } = useQuery<BotMessage[]>({
