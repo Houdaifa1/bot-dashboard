@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../store/auth'
 import { useToast } from '../store/toast'
@@ -11,13 +11,13 @@ import {
 import type { Flow, FlowNode, NodeType } from '../types'
 import {
   Plus, Pencil, Trash2, Play, Square, ChevronDown, ChevronUp,
-  GripVertical, Copy, ArrowUp, ArrowDown,
+  Copy, ArrowUp, ArrowDown,
   MessageSquareText, LayoutGrid, List, Stethoscope, User, Calendar,
   Clock, TextCursorInput, GitBranch, CalendarCheck, Circle, Dot,
-  Check, X, AlertTriangle, Eye, Settings2, Cable, Target,
-  ArrowDownToDot, SquareArrowOutUpRight, Grip, Info,
+  Check, X, AlertTriangle, Eye, Cable,
+  ArrowDownToDot, Info,
 } from 'lucide-react'
-import { Modal, ConfirmDialog, Field } from '../components/ui'
+import { ConfirmDialog, Field } from '../components/ui'
 
 // ─── Node type metadata ───────────────────────────────────────────────────
 const NODE_TYPES: { value: NodeType; labelKey: TKey; icon: React.ElementType; color: string }[] = [
@@ -760,8 +760,7 @@ function NodeCard({ node, nodes, flowId, lang, isFirst, onUpdated, onDeleted, on
 }
 
 // ─── Add Node Dropdown ────────────────────────────────────────────────────
-function AddNodeDropdown({ nodes, flowId, lang, onAdded, position }: {
-  nodes: FlowNode[]
+function AddNodeDropdown({ flowId, lang, onAdded, position }: {
   flowId: string
   lang: 'FR' | 'EN'
   onAdded: () => void
@@ -833,7 +832,6 @@ function FlowBuilder({ flow, lang, onClose }: {
 }) {
   const { toast } = useToast()
   const queryClient = useQueryClient()
-  const [showAddMenu, setShowAddMenu] = useState(false)
   const [flowName, setFlowName] = useState(flow.name)
   const [nodes, setNodes] = useState<FlowNode[]>(() => [...(flow.nodes || [])].sort((a, b) => a.position - b.position))
 
@@ -848,20 +846,6 @@ function FlowBuilder({ flow, lang, onClose }: {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['flows'] })
       toast(t(lang, 'saved' as TKey), 'success')
-    },
-    onError: () => toast(t(lang, 'errorSaving' as TKey), 'error'),
-  })
-
-  const addMut = useMutation({
-    mutationFn: (position: number) => addFlowNode(flow.id, {
-      type: 'TEXT',
-      label: 'New node',
-      config: DEFAULT_CONFIGS.TEXT,
-      position,
-    }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['flows'] })
-      toast(t(lang, 'flow_node_added' as TKey), 'success')
     },
     onError: () => toast(t(lang, 'errorSaving' as TKey), 'error'),
   })
@@ -936,7 +920,7 @@ function FlowBuilder({ flow, lang, onClose }: {
               <GitBranch size={24} className="text-neutral-400" />
             </div>
             <p className="text-sm text-neutral-500 dark:text-neutral-400 mb-4">{t(lang, 'flow_no_nodes' as TKey)}</p>
-            <AddNodeDropdown nodes={nodes} flowId={flow.id} lang={lang} onAdded={() => queryClient.invalidateQueries({ queryKey: ['flows'] })} position={0} />
+            <AddNodeDropdown flowId={flow.id} lang={lang} onAdded={() => queryClient.invalidateQueries({ queryKey: ['flows'] })} position={0} />
           </div>
         ) : (
           <div className="space-y-0">
@@ -967,7 +951,6 @@ function FlowBuilder({ flow, lang, onClose }: {
             {/* Add node at end */}
             <div className="mt-6">
               <AddNodeDropdown
-                nodes={nodes}
                 flowId={flow.id}
                 lang={lang}
                 onAdded={() => queryClient.invalidateQueries({ queryKey: ['flows'] })}
