@@ -43,33 +43,51 @@ export function Modal({ open, onClose, title, children, size = 'md' }: {
 }
 
 // ── Confirm Dialog ────────────────────────────────────────────────────────────
-export function ConfirmDialog({ open, onClose, onConfirm, lang, loading }: {
+export function ConfirmDialog({ open, onClose, onConfirm, lang, loading, permanent, title, body, confirmLabel, icon: IconProp }: {
   open: boolean
   onClose: () => void
   onConfirm: () => void
   lang: Lang
   loading?: boolean
+  permanent?: boolean
+  title?: string
+  body?: string
+  confirmLabel?: string
+  icon?: React.ElementType
 }) {
   if (!open) return null
+  const DialogIcon = IconProp ?? AlertTriangle
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       <div className="relative w-full max-w-sm bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl p-6 border border-neutral-200 dark:border-neutral-800">
         <div className="flex items-start gap-4 mb-6">
-          <div className="w-10 h-10 rounded-full bg-red-50 dark:bg-red-950/40 flex items-center justify-center shrink-0">
-            <AlertTriangle size={18} className="text-red-600 dark:text-red-400" />
+          <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${permanent ? 'bg-red-50 dark:bg-red-950/40' : 'bg-amber-50 dark:bg-amber-950/40'}`}>
+            <DialogIcon size={18} className={permanent ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'} />
           </div>
           <div>
-            <h2 className="font-semibold text-neutral-800 dark:text-neutral-100 mb-1">{t(lang, 'confirmDeleteTitle')}</h2>
-            <p className="text-sm text-neutral-500 dark:text-neutral-400">{t(lang, 'confirmDeleteBody')}</p>
+            <h2 className="font-semibold text-neutral-800 dark:text-neutral-100 mb-1">
+              {title ?? (permanent
+                ? (lang === 'FR' ? 'Supprimer définitivement ?' : 'Delete permanently?')
+                : (lang === 'FR' ? 'Désactiver ?' : 'Deactivate?'))}
+            </h2>
+            <p className="text-sm text-neutral-500 dark:text-neutral-400">
+              {body ?? (permanent
+                ? (lang === 'FR' ? 'Cette action est irréversible. L\'élément sera définitivement supprimé.' : 'This action cannot be undone. The item will be permanently deleted.')
+                : (lang === 'FR' ? 'L\'élément sera désactivé mais pourra être réactivé ultérieurement.' : 'The item will be deactivated but can be reactivated later.'))}
+            </p>
           </div>
         </div>
         <div className="flex gap-3 justify-end">
           <button className="btn-outline" onClick={onClose} disabled={loading}>
             {t(lang, 'cancel')}
           </button>
-          <button className="btn-danger" onClick={onConfirm} disabled={loading}>
-            {loading ? <Loader2 size={14} className="animate-spin" /> : t(lang, 'delete')}
+          <button
+            className={permanent ? 'btn-danger' : 'btn-ghost text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40'}
+            onClick={onConfirm}
+            disabled={loading}
+          >
+            {loading ? <Loader2 size={14} className="animate-spin" /> : (confirmLabel ?? (permanent ? t(lang, 'delete') : (lang === 'FR' ? 'Désactiver' : 'Deactivate')))}
           </button>
         </div>
       </div>

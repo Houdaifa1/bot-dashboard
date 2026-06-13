@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Pencil, Trash2, RotateCcw, Loader2 } from 'lucide-react'
-import { getSpecialties, createSpecialty, updateSpecialty, deleteSpecialty } from '../api'
+import { Plus, Pencil, Trash2, RotateCcw, Loader2, ToggleLeft } from 'lucide-react'
+import { getSpecialties, createSpecialty, updateSpecialty, deleteSpecialty, hardDeleteSpecialty } from '../api'
 import { useAuth } from '../store/auth'
 import { useToast } from '../store/toast'
 import { t } from '../i18n'
@@ -159,6 +159,7 @@ export function SpecialtiesPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<SpecialtyGroup | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<{ slug: string; fr: Specialty | null; en: Specialty | null } | null>(null)
+  const [hardDeleteTarget, setHardDeleteTarget] = useState<{ slug: string; fr: Specialty | null; en: Specialty | null } | null>(null)
 
   const { data: specialties, isLoading, isError, refetch } = useQuery<Specialty[]>({
     queryKey: ['specialties', 'all'],
@@ -202,17 +203,42 @@ export function SpecialtiesPage() {
     onError: () => toast(t(lang, 'errorSaving'), 'error'),
   })
 
+  const hardDeleteMut = useMutation({
+    mutationFn: (ids: string[]) =>
+      Promise.all(ids.map(id => hardDeleteSpecialty(id))),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['specialties'] })
+      toast(t(lang, 'spec_deleted'), 'success')
+      setHardDeleteTarget(null)
+    },
+    onError: () => toast(t(lang, 'errorSaving'), 'error'),
+  })
+
+  const createMissingMut = useMutation({
+    mutationFn: (data: { label: string; slug: string; language: string; displayOrder: number }) =>
+      createSpecialty(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['specialties'] })
+      toast(t(lang, 'spec_updated'), 'success')
+      setModalOpen(false)
+      setEditing(null)
+    },
+    onError: () => toast(t(lang, 'errorSaving'), 'error'),
+  })
+
   const handleSave = (form: GroupForm) => {
     if (editing) {
       const updates: { id: string; data: Partial<Specialty> }[] = []
+      const creates: Promise<any>[] = []
       if (editing.fr) {
         updates.push({
           id: editing.fr.id,
           data: { label: form.frLabel, slug: form.slug, displayOrder: form.displayOrder },
         })
       } else {
-        // FR row doesn't exist yet — create it
-        createSpecialty({ label: form.frLabel, slug: form.slug, language: 'FR', displayOrder: form.displayOrder })
+        creates.push(
+          createSpecialty({ label: form.frLabel, slug: form.slug, language: 'FR', displayOrder: form.displayOrder })
+        )
       }
       if (editing.en) {
         updates.push({
@@ -220,17 +246,25 @@ export function SpecialtiesPage() {
           data: { label: form.enLabel, slug: form.slug, displayOrder: form.displayOrder },
         })
       } else {
-        // EN row doesn't exist yet — create it
-        createSpecialty({ label: form.enLabel, slug: form.slug, language: 'EN', displayOrder: form.displayOrder })
+        creates.push(
+          createSpecialty({ label: form.enLabel, slug: form.slug, language: 'EN', displayOrder: form.displayOrder })
+        )
       }
-      if (updates.length > 0) {
+      if (updates.length > 0 && creates.length > 0) {
+        // Both updates and creates needed
+        Promise.all(creates).then(() => {
+          updateMut.mutate(updates)
+        })
+      } else if (updates.length > 0) {
         updateMut.mutate(updates)
       } else {
-        // Only creates needed — invalidate and close
-        queryClient.invalidateQueries({ queryKey: ['specialties'] })
-        toast(t(lang, 'spec_updated'), 'success')
-        setModalOpen(false)
-        setEditing(null)
+        // Only creates
+        Promise.all(creates).then(() => {
+          queryClient.invalidateQueries({ queryKey: ['specialties'] })
+          toast(t(lang, 'spec_updated'), 'success')
+          setModalOpen(false)
+          setEditing(null)
+        })
       }
     } else {
       createMut.mutate(form)
@@ -324,13 +358,22 @@ export function SpecialtiesPage() {
                       <Pencil size={14} />
                     </button>
                     {isActive ? (
-                      <button
-                        className="btn-ghost h-8 w-8 p-0 text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300"
-                        onClick={() => setDeleteTarget({ slug: group.slug, fr: group.fr, en: group.en })}
-                        title={t(lang, 'delete')}
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      <>
+                        <button
+                          className="btn-ghost h-8 w-8 p-0 text-amber-500 hover:text-amber-600 dark:text-amber-400 dark:hover:text-amber-300"
+                          onClick={() => setDeleteTarget({ slug: group.slug, fr: group.fr, en: group.en })}
+                          title={lang === 'FR' ? 'Désactiver' : 'Deactivate'}
+                        >
+                          <ToggleLeft size={14} />
+                        </button>
+                        <button
+                          className="btn-ghost h-8 w-8 p-0 text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300"
+                          onClick={() => setHardDeleteTarget({ slug: group.slug, fr: group.fr, en: group.en })}
+                          title={lang === 'FR' ? 'Supprimer définitivement' : 'Delete permanently'}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </>
                     ) : (
                       <button
                         className="btn-ghost h-8 w-8 p-0 text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300"
@@ -383,7 +426,7 @@ export function SpecialtiesPage() {
         lang={lang}
       />
 
-      {/* Delete confirm */}
+      {/* Deactivate confirm */}
       <ConfirmDialog
         open={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
@@ -397,6 +440,23 @@ export function SpecialtiesPage() {
         }}
         lang={lang}
         loading={deleteMut.isPending}
+      />
+
+      {/* Permanent delete confirm */}
+      <ConfirmDialog
+        open={!!hardDeleteTarget}
+        onClose={() => setHardDeleteTarget(null)}
+        onConfirm={() => {
+          const target = hardDeleteTarget
+          if (!target) return
+          const ids: string[] = []
+          if (target.fr) ids.push(target.fr.id)
+          if (target.en) ids.push(target.en.id)
+          if (ids.length > 0) hardDeleteMut.mutate(ids)
+        }}
+        lang={lang}
+        loading={hardDeleteMut.isPending}
+        permanent
       />
     </div>
   )

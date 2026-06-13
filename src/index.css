@@ -8,6 +8,22 @@
   body { @apply bg-neutral-50 dark:bg-neutral-950 text-neutral-800 dark:text-neutral-100 font-sans; }
 }
 
+/* Dark mode calendar/time picker icons */
+.dark input[type="date"]::-webkit-calendar-picker-indicator,
+.dark input[type="time"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+}
+.dark input[type="date"]::-webkit-calendar-picker-indicator:hover,
+.dark input[type="time"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 0.7;
+}
+@supports (color-scheme: dark) {
+  .dark input[type="date"],
+  .dark input[type="time"] {
+    color-scheme: dark;
+  }
+}
+
 @layer components {
   .card        { @apply bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200 dark:border-neutral-800 shadow-sm; }
   .btn         { @apply inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed; }

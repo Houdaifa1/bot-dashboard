@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  Plus, Pencil, Trash2, RotateCcw, Clock, Loader2, X
+  Plus, Pencil, Trash2, RotateCcw, Clock, Loader2, X, ToggleLeft
 } from 'lucide-react'
 import {
-  getDoctors, createDoctor, updateDoctor, deleteDoctor,
+  getDoctors, createDoctor, updateDoctor, deleteDoctor, hardDeleteDoctor,
   getSpecialties,
   getTimeSlots, createTimeSlot, updateTimeSlot, deleteTimeSlot,
 } from '../api'
@@ -270,6 +270,7 @@ function DoctorCard({
   lang,
   onEdit,
   onDelete,
+  onHardDelete,
   onReactivate,
 }: {
   doctor: Doctor
@@ -277,6 +278,7 @@ function DoctorCard({
   lang: 'FR' | 'EN'
   onEdit: () => void
   onDelete: () => void
+  onHardDelete: () => void
   onReactivate: () => void
 }) {
   const { toast } = useToast()
@@ -289,7 +291,7 @@ function DoctorCard({
   })
 
   const deleteSlotMut = useMutation({
-    mutationFn: (id: string) => deleteTimeSlot(doctor.id, id),
+    mutationFn: (id: string) => deleteTimeSlot(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['timeslots', doctor.id] })
       toast(t(lang, 'slot_deleted'), 'success')
@@ -312,7 +314,7 @@ function DoctorCard({
 
   const updateSlotMut = useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<TimeSlot> }) =>
-      updateTimeSlot(doctor.id, id, data),
+      updateTimeSlot(id, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['timeslots', doctor.id] })
       toast(t(lang, 'slot_updated'), 'success')
@@ -372,13 +374,22 @@ function DoctorCard({
             <Pencil size={14} />
           </button>
           {doctor.isActive ? (
-            <button
-              className="btn-ghost h-8 w-8 p-0 text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300"
-              onClick={onDelete}
-              title={t(lang, 'delete')}
-            >
-              <Trash2 size={14} />
-            </button>
+            <>
+              <button
+                className="btn-ghost h-8 w-8 p-0 text-amber-500 hover:text-amber-600 dark:text-amber-400 dark:hover:text-amber-300"
+                onClick={onDelete}
+                title={lang === 'FR' ? 'Désactiver' : 'Deactivate'}
+              >
+                <ToggleLeft size={14} />
+              </button>
+              <button
+                className="btn-ghost h-8 w-8 p-0 text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300"
+                onClick={onHardDelete}
+                title={lang === 'FR' ? 'Supprimer définitivement' : 'Delete permanently'}
+              >
+                <Trash2 size={14} />
+              </button>
+            </>
           ) : (
             <button
               className="btn-ghost h-8 w-8 p-0 text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300"
@@ -482,6 +493,7 @@ export function DoctorsPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<Doctor | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Doctor | null>(null)
+  const [hardDeleteTarget, setHardDeleteTarget] = useState<Doctor | null>(null)
 
   const { data: doctors, isLoading, isError, refetch } = useQuery<Doctor[]>({
     queryKey: ['doctors'],
@@ -550,6 +562,16 @@ export function DoctorsPage() {
     onError: () => toast(t(lang, 'errorSaving'), 'error'),
   })
 
+  const hardDeleteMut = useMutation({
+    mutationFn: (id: string) => hardDeleteDoctor(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['doctors'] })
+      toast(t(lang, 'doc_deleted'), 'success')
+      setHardDeleteTarget(null)
+    },
+    onError: () => toast(t(lang, 'errorSaving'), 'error'),
+  })
+
   const handleSave = (form: DoctorForm) => {
     if (editing) {
       updateMut.mutate({ id: editing.id, data: form })
@@ -612,6 +634,7 @@ export function DoctorsPage() {
               lang={lang}
               onEdit={() => openEdit(doctor)}
               onDelete={() => setDeleteTarget(doctor)}
+              onHardDelete={() => setHardDeleteTarget(doctor)}
               onReactivate={() => handleReactivate(doctor)}
             />
           ))}
@@ -634,13 +657,23 @@ export function DoctorsPage() {
         specialties={specialties ?? []}
       />
 
-      {/* Delete confirm */}
+      {/* Deactivate confirm */}
       <ConfirmDialog
         open={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
         onConfirm={() => deleteTarget && deleteMut.mutate(deleteTarget.id)}
         lang={lang}
         loading={deleteMut.isPending}
+      />
+
+      {/* Permanent delete confirm */}
+      <ConfirmDialog
+        open={!!hardDeleteTarget}
+        onClose={() => setHardDeleteTarget(null)}
+        onConfirm={() => hardDeleteTarget && hardDeleteMut.mutate(hardDeleteTarget.id)}
+        lang={lang}
+        loading={hardDeleteMut.isPending}
+        permanent
       />
     </div>
   )

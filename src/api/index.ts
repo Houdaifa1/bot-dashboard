@@ -37,8 +37,10 @@ export const updateClinic = (data: any) =>
   api.patch('/api/admin/v1/clinics', data).then(r => r.data)
 
 // Bot Messages
-export const getBotMessages = (clinicId: string) =>
-  api.get(`/api/admin/v1/clinic/${clinicId}/messages`).then(r => r.data)
+export const getBotMessages = (clinicId: string, language?: string) =>
+  api.get(`/api/admin/v1/clinic/${clinicId}/messages`, {
+    params: language ? { language } : {},
+  }).then(r => r.data)
 export const updateBotMessage = (clinicId: string, key: string, language: string, body: string) =>
   api.patch(`/api/admin/v1/clinic/${clinicId}/messages/${key}/${language}`, { body }).then(r => r.data)
 
@@ -51,6 +53,8 @@ export const updateSpecialty = (id: string, data: any) =>
   api.patch(`/api/admin/v1/specialties/${id}`, data).then(r => r.data)
 export const deleteSpecialty = (id: string) =>
   api.delete(`/api/admin/v1/specialties/${id}`).then(r => r.data)
+export const hardDeleteSpecialty = (id: string) =>
+  api.delete(`/api/admin/v1/specialties/${id}/hard`).then(r => r.data)
 
 // Doctors
 export const getDoctors = (specialtyId?: string) =>
@@ -61,16 +65,18 @@ export const updateDoctor = (id: string, data: any) =>
   api.patch(`/api/admin/v1/doctors/${id}`, data).then(r => r.data)
 export const deleteDoctor = (id: string) =>
   api.delete(`/api/admin/v1/doctors/${id}`).then(r => r.data)
+export const hardDeleteDoctor = (id: string) =>
+  api.delete(`/api/admin/v1/doctors/${id}/hard`).then(r => r.data)
 
 // Time Slots
 export const getTimeSlots = (doctorId: string) =>
   api.get(`/api/admin/v1/doctors/${doctorId}/timeslots`).then(r => r.data)
 export const createTimeSlot = (doctorId: string, data: any) =>
   api.post(`/api/admin/v1/doctors/${doctorId}/timeslots`, data).then(r => r.data)
-export const updateTimeSlot = (doctorId: string, id: string, data: any) =>
-  api.patch(`/api/admin/v1/doctors/${doctorId}/timeslots/${id}`, data).then(r => r.data)
-export const deleteTimeSlot = (doctorId: string, id: string) =>
-  api.delete(`/api/admin/v1/doctors/${doctorId}/timeslots/${id}`).then(r => r.data)
+export const updateTimeSlot = (id: string, data: any) =>
+  api.patch(`/api/admin/v1/timeslots/${id}`, data).then(r => r.data)
+export const deleteTimeSlot = (id: string) =>
+  api.delete(`/api/admin/v1/timeslots/${id}`).then(r => r.data)
 
 // FAQs
 export const getFaqs = (language?: string) =>
@@ -81,12 +87,16 @@ export const updateFaq = (id: string, data: any) =>
   api.patch(`/api/admin/v1/faqs/${id}`, data).then(r => r.data)
 export const deleteFaq = (id: string) =>
   api.delete(`/api/admin/v1/faqs/${id}`).then(r => r.data)
+export const hardDeleteFaq = (id: string) =>
+  api.delete(`/api/admin/v1/faqs/${id}/hard`).then(r => r.data)
 
 // Appointments
 export const getAppointments = (params?: any) =>
   api.get('/api/admin/v1/appointments', { params }).then(r => r.data)
 export const updateAppointmentStatus = (id: string, status: string) =>
   api.patch(`/api/admin/v1/appointments/${id}/status`, { status }).then(r => r.data)
+export const deleteAppointment = (id: string) =>
+  api.delete(`/api/admin/v1/appointments/${id}`).then(r => r.data)
 
 // Handoff
 export const getHandoffSessions = () =>

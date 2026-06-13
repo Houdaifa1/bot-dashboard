@@ -37,6 +37,8 @@ export interface Appointment {
   patientName: string; patientPhone: string; appointmentDate: string;
   appointmentTime: string; status: AppointmentStatus; notes?: string;
   createdAt: string; updatedAt: string;
+  doctor?: { id: string; name: string };
+  specialty?: { id: string; label: string };
 }
 
 export type AppointmentStatus = 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'COMPLETED' | 'NO_SHOW'

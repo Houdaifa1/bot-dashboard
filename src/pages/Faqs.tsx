@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Pencil, Trash2, RotateCcw, Loader2 } from 'lucide-react'
-import { getFaqs, createFaq, updateFaq, deleteFaq } from '../api'
+import { Plus, Pencil, Trash2, RotateCcw, Loader2, ToggleLeft } from 'lucide-react'
+import { getFaqs, createFaq, updateFaq, deleteFaq, hardDeleteFaq } from '../api'
 import { useAuth } from '../store/auth'
 import { useToast } from '../store/toast'
 import { t } from '../i18n'
@@ -188,6 +188,7 @@ export function FaqsPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<FAQGroup | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<{ order: number; fr: FAQ | null; en: FAQ | null } | null>(null)
+  const [hardDeleteTarget, setHardDeleteTarget] = useState<{ order: number; fr: FAQ | null; en: FAQ | null } | null>(null)
 
   const { data: faqs, isLoading, isError, refetch } = useQuery<FAQ[]>({
     queryKey: ['faqs'],
@@ -239,6 +240,17 @@ export function FaqsPage() {
       queryClient.invalidateQueries({ queryKey: ['faqs'] })
       toast(t(lang, 'faq_deleted'), 'success')
       setDeleteTarget(null)
+    },
+    onError: () => toast(t(lang, 'errorSaving'), 'error'),
+  })
+
+  const hardDeleteMut = useMutation({
+    mutationFn: (ids: string[]) =>
+      Promise.all(ids.map(id => hardDeleteFaq(id))),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['faqs'] })
+      toast(t(lang, 'faq_deleted'), 'success')
+      setHardDeleteTarget(null)
     },
     onError: () => toast(t(lang, 'errorSaving'), 'error'),
   })
@@ -363,13 +375,22 @@ export function FaqsPage() {
                       <Pencil size={14} />
                     </button>
                     {isActive ? (
-                      <button
-                        className="btn-ghost h-8 w-8 p-0 text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300"
-                        onClick={() => setDeleteTarget({ order: group.displayOrder, fr: group.fr, en: group.en })}
-                        title={t(lang, 'delete')}
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      <>
+                        <button
+                          className="btn-ghost h-8 w-8 p-0 text-amber-500 hover:text-amber-600 dark:text-amber-400 dark:hover:text-amber-300"
+                          onClick={() => setDeleteTarget({ order: group.displayOrder, fr: group.fr, en: group.en })}
+                          title={lang === 'FR' ? 'Désactiver' : 'Deactivate'}
+                        >
+                          <ToggleLeft size={14} />
+                        </button>
+                        <button
+                          className="btn-ghost h-8 w-8 p-0 text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300"
+                          onClick={() => setHardDeleteTarget({ order: group.displayOrder, fr: group.fr, en: group.en })}
+                          title={lang === 'FR' ? 'Supprimer définitivement' : 'Delete permanently'}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </>
                     ) : (
                       <button
                         className="btn-ghost h-8 w-8 p-0 text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300"
@@ -468,7 +489,7 @@ export function FaqsPage() {
         lang={lang}
       />
 
-      {/* Delete confirm */}
+      {/* Deactivate confirm */}
       <ConfirmDialog
         open={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
@@ -482,6 +503,23 @@ export function FaqsPage() {
         }}
         lang={lang}
         loading={deleteMut.isPending}
+      />
+
+      {/* Permanent delete confirm */}
+      <ConfirmDialog
+        open={!!hardDeleteTarget}
+        onClose={() => setHardDeleteTarget(null)}
+        onConfirm={() => {
+          const target = hardDeleteTarget
+          if (!target) return
+          const ids: string[] = []
+          if (target.fr) ids.push(target.fr.id)
+          if (target.en) ids.push(target.en.id)
+          if (ids.length > 0) hardDeleteMut.mutate(ids)
+        }}
+        lang={lang}
+        loading={hardDeleteMut.isPending}
+        permanent
       />
     </div>
   )

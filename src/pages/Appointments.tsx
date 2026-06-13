@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Download, Loader2 } from 'lucide-react'
-import { getAppointments, updateAppointmentStatus, getDoctors } from '../api'
+import { Download, Loader2, Trash2 } from 'lucide-react'
+import { getAppointments, updateAppointmentStatus, deleteAppointment, getDoctors } from '../api'
 import { useAuth } from '../store/auth'
 import { useToast } from '../store/toast'
 import { t, type TKey } from '../i18n'
-import { PageHeader, PageLoader, Empty, StatusBadge } from '../components/ui'
+import { PageHeader, PageLoader, Empty, StatusBadge, ConfirmDialog } from '../components/ui'
 import type { Appointment, AppointmentStatus, Doctor } from '../types'
 
 const STATUSES: AppointmentStatus[] = ['PENDING', 'CONFIRMED', 'CANCELLED', 'COMPLETED', 'NO_SHOW']
@@ -32,6 +32,18 @@ function AppointmentsPage() {
   const { data: doctors } = useQuery<Doctor[]>({
     queryKey: ['doctors'],
     queryFn: () => getDoctors(),
+  })
+
+  const [deleteTarget, setDeleteTarget] = useState<Appointment | null>(null)
+
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => deleteAppointment(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['appointments'] })
+      toast(t(lang, 'appt_updated'), 'success')
+      setDeleteTarget(null)
+    },
+    onError: () => toast(t(lang, 'errorSaving'), 'error'),
   })
 
   const statusMut = useMutation({
@@ -209,7 +221,7 @@ function AppointmentsPage() {
                   <td className="px-5 py-4">
                     <StatusBadge status={a.status} lang={lang} />
                   </td>
-                  <td className="px-5 py-4 text-right">
+                  <td className="px-5 py-4 text-right flex items-center justify-end gap-2">
                     <select
                       className="input h-8 w-auto text-xs min-w-[110px]"
                       value=""
@@ -230,6 +242,13 @@ function AppointmentsPage() {
                         </option>
                       ))}
                     </select>
+                    <button
+                      className="btn-ghost h-8 w-8 p-0 text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300"
+                      onClick={() => setDeleteTarget(a)}
+                      title={t(lang, 'delete')}
+                    >
+                      <Trash2 size={14} />
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -237,6 +256,19 @@ function AppointmentsPage() {
           </table>
         </div>
       )}
+
+      {/* Delete confirm */}
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={() => deleteTarget && deleteMut.mutate(deleteTarget.id)}
+        lang={lang}
+        loading={deleteMut.isPending}
+        permanent
+        title={lang === 'FR' ? 'Supprimer le rendez-vous ?' : 'Delete appointment?'}
+        body={lang === 'FR' ? 'Ce rendez-vous sera définitivement supprimé.' : 'This appointment will be permanently deleted.'}
+        confirmLabel={lang === 'FR' ? 'Supprimer' : 'Delete'}
+      />
     </div>
   )
 }

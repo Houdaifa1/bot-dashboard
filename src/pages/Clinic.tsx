@@ -36,8 +36,6 @@ export function ClinicPage() {
     address: '',
     timezone: '',
     defaultLanguage: '',
-    supportedLangs: [] as string[],
-    isActive: true,
   })
 
   const [dirty, setDirty] = useState(false)
@@ -50,8 +48,6 @@ export function ClinicPage() {
         address: clinic.address ?? '',
         timezone: clinic.timezone,
         defaultLanguage: clinic.defaultLanguage,
-        supportedLangs: clinic.supportedLangs,
-        isActive: clinic.isActive,
       })
       setDirty(false)
     }
@@ -74,13 +70,6 @@ export function ClinicPage() {
     setDirty(true)
   }
 
-  const toggleSupportedLang = (l: string) => {
-    const next = form.supportedLangs.includes(l)
-      ? form.supportedLangs.filter(x => x !== l)
-      : [...form.supportedLangs, l]
-    set('supportedLangs', next)
-  }
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     mutation.mutate({
@@ -88,9 +77,7 @@ export function ClinicPage() {
       phone: form.phone,
       address: form.address,
       timezone: form.timezone,
-      defaultLanguage: form.defaultLanguage as any,
-      supportedLangs: form.supportedLangs as any,
-      isActive: form.isActive,
+      defaultLanguage: form.defaultLanguage,
     })
   }
 
@@ -102,8 +89,6 @@ export function ClinicPage() {
         address: clinic.address ?? '',
         timezone: clinic.timezone,
         defaultLanguage: clinic.defaultLanguage,
-        supportedLangs: clinic.supportedLangs,
-        isActive: clinic.isActive,
       })
       setDirty(false)
     }
@@ -197,60 +182,6 @@ export function ClinicPage() {
             </select>
           </Field>
 
-          <Field
-            label={lang === 'FR' ? 'Langues supportées' : 'Supported languages'}
-            hint={lang === 'FR' ? 'Langues disponibles pour les patients WhatsApp' : 'Languages available to WhatsApp patients'}
-          >
-            <div className="flex gap-3 mt-1">
-              {LANGUAGES.map(l => (
-                <label
-                  key={l}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg border text-sm font-medium cursor-pointer transition-colors
-                    ${form.supportedLangs.includes(l)
-                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400'
-                      : 'border-neutral-200 dark:border-neutral-700 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800'
-                    }`}
-                >
-                  <input
-                    type="checkbox"
-                    className="sr-only"
-                    checked={form.supportedLangs.includes(l)}
-                    onChange={() => toggleSupportedLang(l)}
-                  />
-                  {t(lang, l === 'FR' ? 'french' : 'english')}
-                </label>
-              ))}
-            </div>
-          </Field>
-        </div>
-
-        {/* Status */}
-        <div className="card p-6">
-          <p className="text-xs font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-widest mb-5">
-            {lang === 'FR' ? 'Statut' : 'Status'}
-          </p>
-          <label className="flex items-center justify-between cursor-pointer">
-            <div>
-              <p className="text-sm font-medium text-neutral-800 dark:text-neutral-200">
-                {lang === 'FR' ? 'Clinique active' : 'Clinic active'}
-              </p>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-                {lang === 'FR'
-                  ? 'Désactiver stoppe toutes les conversations WhatsApp'
-                  : 'Disabling stops all WhatsApp conversations'}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => set('isActive', !form.isActive)}
-              className={`relative w-11 h-6 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500/30
-                ${form.isActive ? 'bg-blue-600' : 'bg-neutral-200 dark:bg-neutral-700'}`}
-            >
-              <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200
-                ${form.isActive ? 'translate-x-5' : 'translate-x-0'}`}
-              />
-            </button>
-          </label>
         </div>
 
         {/* Actions */}
