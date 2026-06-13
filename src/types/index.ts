@@ -13,7 +13,7 @@ export interface Specialty {
   id: string; clinicId: string; label: string; language: string;
   slug: string; isActive: boolean; displayOrder: number; createdAt: string;
   updatedAt?: string;
-}b
+}
 
 export interface Doctor {
   id: string; clinicId: string; specialtyId: string; name: string;
