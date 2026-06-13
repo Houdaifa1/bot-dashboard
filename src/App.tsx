@@ -14,6 +14,7 @@ import { DoctorsPage }     from './pages/Doctors'
 import { FaqsPage }        from './pages/Faqs'
 import { AppointmentsPage} from './pages/Appointments'
 import { HandoffPage }     from './pages/Handoff'
+import { FlowsPage }       from './pages/Flows'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -66,6 +67,9 @@ function AppRoutes() {
       } />
       <Route path="/handoff" element={
         <ProtectedRoute><HandoffPage /></ProtectedRoute>
+      } />
+      <Route path="/flows" element={
+        <ProtectedRoute><FlowsPage /></ProtectedRoute>
       } />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
