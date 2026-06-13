@@ -40,7 +40,7 @@ function AppointmentsPage() {
     mutationFn: (id: string) => deleteAppointment(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['appointments'] })
-      toast(t(lang, 'appt_updated'), 'success')
+      toast(t(lang, 'appt_deleted'), 'success')
       setDeleteTarget(null)
     },
     onError: () => toast(t(lang, 'errorSaving'), 'error'),

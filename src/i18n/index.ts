@@ -92,6 +92,8 @@ const fr = {
   spec_created:  'Spécialité créée',
   spec_updated:  'Spécialité mise à jour',
   spec_deleted:  'Spécialité désactivée',
+  spec_hard_deleted: 'Spécialité supprimée',
+  spec_reactivated: 'Spécialité réactivée',
   spec_reactivate: 'Réactiver',
   spec_missing_fr: 'Traduction française manquante',
   spec_missing_en: 'Traduction anglaise manquante',
@@ -116,6 +118,8 @@ const fr = {
   doc_created:   'Médecin créé',
   doc_updated:   'Médecin mis à jour',
   doc_deleted:   'Médecin désactivé',
+  doc_hard_deleted: 'Médecin supprimé',
+  doc_reactivated: 'Médecin réactivé',
 
   // timeslots
   slot_title:    'Créneaux de disponibilité',
@@ -143,6 +147,8 @@ const fr = {
   faq_created:  'FAQ créée',
   faq_updated:  'FAQ mise à jour',
   faq_deleted:  'FAQ désactivée',
+  faq_hard_deleted: 'FAQ supprimée',
+  faq_reactivated: 'FAQ réactivée',
 
   // appointments
   appt_title:    'Rendez-vous',
@@ -158,6 +164,7 @@ const fr = {
   appt_filter_doctor: 'Filtrer par médecin',
   appt_change_status: 'Changer le statut',
   appt_updated:  'Statut mis à jour',
+  appt_deleted:  'Rendez-vous supprimé',
   status_PENDING:   'En attente',
   status_CONFIRMED: 'Confirmé',
   status_CANCELLED: 'Annulé',
@@ -256,6 +263,8 @@ const en: typeof fr = {
   spec_created:  'Specialty created',
   spec_updated:  'Specialty updated',
   spec_deleted:  'Specialty deactivated',
+  spec_hard_deleted: 'Specialty deleted',
+  spec_reactivated: 'Specialty reactivated',
   spec_reactivate: 'Reactivate',
   spec_missing_fr: 'Missing French translation',
   spec_missing_en: 'Missing English translation',
@@ -279,6 +288,8 @@ const en: typeof fr = {
   doc_created:   'Doctor created',
   doc_updated:   'Doctor updated',
   doc_deleted:   'Doctor deactivated',
+  doc_hard_deleted: 'Doctor deleted',
+  doc_reactivated: 'Doctor reactivated',
 
   slot_title:    'Availability Slots',
   slot_subtitle: 'Define consultation schedules for this doctor.',
@@ -304,6 +315,8 @@ const en: typeof fr = {
   faq_created:  'FAQ created',
   faq_updated:  'FAQ updated',
   faq_deleted:  'FAQ deactivated',
+  faq_hard_deleted: 'FAQ deleted',
+  faq_reactivated: 'FAQ reactivated',
 
   appt_title:    'Appointments',
   appt_subtitle: 'Track and manage all clinic appointments.',
@@ -318,6 +331,7 @@ const en: typeof fr = {
   appt_filter_doctor: 'Filter by doctor',
   appt_change_status: 'Change status',
   appt_updated:  'Status updated',
+  appt_deleted:  'Appointment deleted',
   status_PENDING:   'Pending',
   status_CONFIRMED: 'Confirmed',
   status_CANCELLED: 'Cancelled',

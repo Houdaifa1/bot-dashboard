@@ -208,7 +208,7 @@ export function SpecialtiesPage() {
       Promise.all(ids.map(id => hardDeleteSpecialty(id))),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['specialties'] })
-      toast(t(lang, 'spec_deleted'), 'success')
+      toast(t(lang, 'spec_hard_deleted'), 'success')
       setHardDeleteTarget(null)
     },
     onError: () => toast(t(lang, 'errorSaving'), 'error'),
@@ -259,12 +259,22 @@ export function SpecialtiesPage() {
     }
   }
 
+  const reactivateMut = useMutation({
+    mutationFn: (payload: { id: string; data: Partial<Specialty> }[]) =>
+      Promise.all(payload.map(p => updateSpecialty(p.id, p.data))),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['specialties'] })
+      toast(t(lang, 'spec_reactivated'), 'success')
+    },
+    onError: () => toast(t(lang, 'errorSaving'), 'error'),
+  })
+
   const handleReactivate = (group: SpecialtyGroup) => {
     const updates: { id: string; data: Partial<Specialty> }[] = []
     if (group.fr && !group.fr.isActive) updates.push({ id: group.fr.id, data: { isActive: true } })
     if (group.en && !group.en.isActive) updates.push({ id: group.en.id, data: { isActive: true } })
     if (updates.length > 0) {
-      updateMut.mutate(updates)
+      reactivateMut.mutate(updates)
     }
   }
 

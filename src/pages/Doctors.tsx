@@ -566,7 +566,7 @@ export function DoctorsPage() {
     mutationFn: (id: string) => hardDeleteDoctor(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['doctors'] })
-      toast(t(lang, 'doc_deleted'), 'success')
+      toast(t(lang, 'doc_hard_deleted'), 'success')
       setHardDeleteTarget(null)
     },
     onError: () => toast(t(lang, 'errorSaving'), 'error'),

@@ -249,7 +249,7 @@ export function FaqsPage() {
       Promise.all(ids.map(id => hardDeleteFaq(id))),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['faqs'] })
-      toast(t(lang, 'faq_deleted'), 'success')
+      toast(t(lang, 'faq_hard_deleted'), 'success')
       setHardDeleteTarget(null)
     },
     onError: () => toast(t(lang, 'errorSaving'), 'error'),
