@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  Plus, Pencil, Trash2, RotateCcw, Clock, Loader2, X, ToggleLeft, AlertCircle
+  Plus, Pencil, Trash2, RotateCcw, Clock, Loader2, X, AlertCircle,
+  Phone, Calendar, User, MessageSquare, Send, CheckCircle,
 } from 'lucide-react'
 import {
-  getDoctors, createDoctor, updateDoctor, deleteDoctor, hardDeleteDoctor,
+  getDoctors, createDoctor, updateDoctor, deleteDoctor, confirmDeleteDoctor,
   getSpecialties,
   getTimeSlots, createTimeSlot, updateTimeSlot, deleteTimeSlot,
 } from '../api'
@@ -12,10 +13,10 @@ import { useAuth } from '../store/auth'
 import { useToast } from '../store/toast'
 import { t } from '../i18n'
 import {
-  PageHeader, PageLoader, Modal, ConfirmDialog, Empty,
+  PageHeader, PageLoader, Modal, Empty,
   ActiveBadge, Field,
 } from '../components/ui'
-import type { Doctor, Specialty, TimeSlot } from '../types'
+import type { Doctor, Specialty, TimeSlot, AppointmentStatus } from '../types'
 
 interface DoctorForm {
   name: string
@@ -47,6 +48,25 @@ const emptySlot = (): SlotForm => ({
   endTime: '17:00',
   slotDurationMinutes: 30,
 })
+
+interface FutureAppointment {
+  id: string
+  patientName: string
+  patientPhone: string
+  appointmentDate: string
+  appointmentTime: string
+  status: AppointmentStatus
+}
+
+interface DeleteCheckResult {
+  requiresConfirmation?: boolean
+  doctorId: string
+  doctorName: string
+  futureAppointments?: FutureAppointment[]
+  futureAppointmentsCount?: number
+  deleted?: boolean
+  hadFutureAppointments?: boolean
+}
 
 // ── Doctor Modal (create / edit / reactivate) ─────────────────────────────────
 function DoctorModal({
@@ -270,10 +290,228 @@ function SlotModal({
   )
 }
 
+// ── Smart Delete Modal ─────────────────────────────────────────────────────────
+function DeleteDoctorModal({
+  open, onClose, doctor, deleteCheck, lang,
+  onDelete,
+}: {
+  open: boolean
+  onClose: () => void
+  doctor: Doctor | null
+  deleteCheck: DeleteCheckResult | null
+  lang: 'FR' | 'EN'
+  onDelete: (notify: boolean, customMessage?: string) => void
+}) {
+  const [notify, setNotify] = useState(true)
+  const [customMessage, setCustomMessage] = useState('')
+  const [showCustom, setShowCustom] = useState(false)
+
+  useEffect(() => {
+    if (open) {
+      setNotify(true)
+      setCustomMessage('')
+      setShowCustom(false)
+    }
+  }, [open])
+
+  if (!open || !doctor || !deleteCheck) return null
+
+  const hasFuture = deleteCheck.requiresConfirmation && (deleteCheck.futureAppointments?.length ?? 0) > 0
+  const appointments = deleteCheck.futureAppointments ?? []
+
+  const formatDate = (d: string) => {
+    const date = new Date(d)
+    return date.toLocaleDateString(lang === 'FR' ? 'fr-FR' : 'en-US', {
+      day: 'numeric', month: 'short', year: 'numeric',
+    })
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full max-w-2xl bg-white dark:bg-neutral-900 rounded-2xl shadow-2xl flex flex-col max-h-[90vh] border border-neutral-200 dark:border-neutral-800">
+        
+        {/* Header */}
+        <div className="flex items-start gap-4 px-6 pt-6 pb-4">
+          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${
+            hasFuture
+              ? 'bg-red-50 dark:bg-red-950/40'
+              : 'bg-amber-50 dark:bg-amber-950/40'
+          }`}>
+            <Trash2 size={22} className={
+              hasFuture
+                ? 'text-red-600 dark:text-red-400'
+                : 'text-amber-600 dark:text-amber-400'
+            } />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h2 className="text-lg font-semibold text-neutral-800 dark:text-neutral-100">
+              {hasFuture
+                ? (t(lang, 'doc_delete_has_future') as string).replace('%s', String(appointments.length))
+                : (t(lang, 'doc_delete_no_appointments') as string).replace('%s', doctor.name)}
+            </h2>
+            <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">
+              {hasFuture
+                ? (lang === 'FR' ? 'Ces patients ont des rendez-vous à venir avec ce médecin.' : 'These patients have upcoming appointments with this doctor.')
+                : t(lang, 'doc_delete_no_appointments_desc')}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="overflow-y-auto px-6 flex-1">
+          {/* Future appointments list */}
+          {hasFuture && appointments.length > 0 && (
+            <div className="mb-5">
+              <h3 className="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-3 flex items-center gap-2">
+                <Calendar size={14} />
+                {t(lang, 'doc_future_appointments')}
+                <span className="text-xs text-neutral-400 font-normal">({appointments.length})</span>
+              </h3>
+
+              <div className="space-y-2">
+                {appointments.map((apt) => (
+                  <div key={apt.id}
+                    className="flex items-center justify-between px-4 py-3 rounded-xl bg-neutral-50 dark:bg-neutral-800/50 border border-neutral-100 dark:border-neutral-700/50"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-8 h-8 rounded-full bg-blue-50 dark:bg-blue-950/30 flex items-center justify-center shrink-0">
+                        <User size={14} className="text-blue-600 dark:text-blue-400" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-neutral-800 dark:text-neutral-200 truncate">
+                          {apt.patientName}
+                        </p>
+                        <div className="flex items-center gap-3 text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
+                          <span className="flex items-center gap-1">
+                            <Phone size={10} />
+                            {apt.patientPhone}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0 ml-3">
+                      <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300 tabular-nums">
+                        {formatDate(apt.appointmentDate)}
+                      </p>
+                      <p className="text-xs text-neutral-400 tabular-nums">{apt.appointmentTime}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Notification options */}
+          {hasFuture && (
+            <div className="mb-5 space-y-4">
+              <div className="flex items-center gap-3">
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="sr-only peer"
+                    checked={notify}
+                    onChange={e => setNotify(e.target.checked)}
+                  />
+                  <div className="w-10 h-6 bg-neutral-200 dark:bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                </label>
+                <div>
+                  <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                    {t(lang, 'doc_delete_notify_patients')}
+                  </span>
+                  <p className="text-xs text-neutral-400 mt-0.5">
+                    {lang === 'FR'
+                      ? 'Un message WhatsApp sera envoyé à chaque patient'
+                      : 'A WhatsApp message will be sent to each patient'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Custom message toggle */}
+              {notify && (
+                <>
+                  <button
+                    className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+                    onClick={() => setShowCustom(!showCustom)}
+                  >
+                    <MessageSquare size={12} />
+                    {showCustom
+                      ? (lang === 'FR' ? 'Masquer le message personnalisé' : 'Hide custom message')
+                      : t(lang, 'doc_delete_custom_message')}
+                  </button>
+
+                  {showCustom && (
+                    <textarea
+                      className="input min-h-[100px] resize-y text-sm"
+                      placeholder={t(lang, 'doc_delete_custom_message_placeholder') as string}
+                      value={customMessage}
+                      onChange={e => setCustomMessage(e.target.value)}
+                    />
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Summary for immediate delete */}
+          {!hasFuture && (
+            <div className="mb-5 flex items-start gap-2 px-3 py-2.5 rounded-lg bg-blue-50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-800 text-xs text-blue-700 dark:text-blue-300">
+              <CheckCircle size={14} className="shrink-0 mt-0.5" />
+              <span>
+                {lang === 'FR'
+                  ? 'Aucun rendez-vous futur. Le médecin sera supprimé et les rendez-vous passés resteront dans les archives.'
+                  : 'No upcoming appointments. The doctor will be deleted and past appointments will remain in records.'}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-neutral-100 dark:border-neutral-800 flex justify-end gap-3">
+          <button className="btn-outline" onClick={onClose}>
+            {t(lang, 'cancel')}
+          </button>
+          {hasFuture ? (
+            <>
+              <button
+                className="btn-ghost text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30"
+                onClick={() => onDelete(false)}
+              >
+                {t(lang, 'doc_delete_just_delete')}
+              </button>
+              <button
+                className="btn-primary bg-red-600 hover:bg-red-700"
+                disabled={!notify}
+                onClick={() => onDelete(true, showCustom ? customMessage : undefined)}
+              >
+                <Send size={14} />
+                {t(lang, 'doc_delete_send_delete')}
+              </button>
+            </>
+          ) : (
+            <button
+              className="btn-danger"
+              onClick={() => onDelete(false)}
+            >
+              <Trash2 size={14} />
+              {t(lang, 'delete')}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Doctor Card ───────────────────────────────────────────────────────────────
 function DoctorCard({
   doctor, specialtyLabel, specialtyIsActive, lang,
-  onEdit, onDelete, onHardDelete, onReactivate,
+  onEdit, onDelete,
 }: {
   doctor: Doctor
   specialtyLabel: string
@@ -281,8 +519,6 @@ function DoctorCard({
   lang: 'FR' | 'EN'
   onEdit: () => void
   onDelete: () => void
-  onHardDelete: () => void
-  onReactivate: () => void
 }) {
   const { toast } = useToast()
   const queryClient = useQueryClient()
@@ -374,26 +610,17 @@ function DoctorCard({
             <Pencil size={14} />
           </button>
           {doctor.isActive ? (
-            <>
-              <button
-                className="btn-ghost h-8 w-8 p-0 text-amber-500 hover:text-amber-600 dark:text-amber-400 dark:hover:text-amber-300"
-                onClick={onDelete}
-                title={lang === 'FR' ? 'Désactiver' : 'Deactivate'}
-              >
-                <ToggleLeft size={14} />
-              </button>
-              <button
-                className="btn-ghost h-8 w-8 p-0 text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300"
-                onClick={onHardDelete}
-                title={lang === 'FR' ? 'Supprimer définitivement' : 'Delete permanently'}
-              >
-                <Trash2 size={14} />
-              </button>
-            </>
+            <button
+              className="btn-ghost h-8 w-8 p-0 text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300"
+              onClick={onDelete}
+              title={lang === 'FR' ? 'Supprimer' : 'Delete'}
+            >
+              <Trash2 size={14} />
+            </button>
           ) : (
             <button
               className="btn-ghost h-8 w-8 p-0 text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300"
-              onClick={onReactivate}
+              onClick={onEdit}
               title={lang === 'FR' ? 'Réactiver' : 'Reactivate'}
             >
               <RotateCcw size={14} />
@@ -481,9 +708,10 @@ export function DoctorsPage() {
   const [editing, setEditing] = useState<Doctor | null>(null)
   const [reactivating, setReactivating] = useState<Doctor | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Doctor | null>(null)
-  const [hardDeleteTarget, setHardDeleteTarget] = useState<Doctor | null>(null)
+  const [deleteCheckResult, setDeleteCheckResult] = useState<DeleteCheckResult | null>(null)
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
 
-  // Fetch ALL doctors (active + inactive) — dashboard needs to show deactivated ones
+  // Fetch ALL doctors (active + inactive)
   const { data: doctors, isLoading, isError, refetch } = useQuery<Doctor[]>({
     queryKey: ['doctors'],
     queryFn: () => getDoctors(),
@@ -531,30 +759,53 @@ export function DoctorsPage() {
     onError: (err: any) => toast(err?.response?.data?.message ?? t(lang, 'errorSaving'), 'error'),
   })
 
-  const deleteMut = useMutation({
+  // Step 1: Check if doctor can be deleted
+  const deleteCheckMut = useMutation({
     mutationFn: (id: string) => deleteDoctor(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['doctors'] })
-      queryClient.invalidateQueries({ queryKey: ['specialties'] })
-      toast(t(lang, 'doc_deleted'), 'success')
-      setDeleteTarget(null)
+    onSuccess: (data: DeleteCheckResult) => {
+      if (data.deleted) {
+        // No future appointments → deleted immediately
+        queryClient.invalidateQueries({ queryKey: ['doctors'] })
+        queryClient.invalidateQueries({ queryKey: ['specialties'] })
+        toast(t(lang, 'doc_deleted_immediately'), 'success')
+        setDeleteTarget(null)
+      } else {
+        // Has future appointments → show delete modal
+        setDeleteCheckResult(data)
+        setDeleteModalOpen(true)
+      }
     },
     onError: (err: any) => toast(err?.response?.data?.message ?? t(lang, 'errorSaving'), 'error'),
   })
 
-  const hardDeleteMut = useMutation({
-    mutationFn: (id: string) => hardDeleteDoctor(id),
-    onSuccess: () => {
+  // Step 2: Confirm deletion with or without notification
+  const confirmDeleteMut = useMutation({
+    mutationFn: ({ id, notify, customMessage }: { id: string; notify: boolean; customMessage?: string }) =>
+      confirmDeleteDoctor(id, { notify, customMessage }),
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['doctors'] })
-      toast(t(lang, 'doc_hard_deleted'), 'success')
-      setHardDeleteTarget(null)
+      queryClient.invalidateQueries({ queryKey: ['specialties'] })
+      setDeleteModalOpen(false)
+      setDeleteTarget(null)
+      setDeleteCheckResult(null)
+
+      if (data.notified && data.notifiedCount > 0) {
+        toast((t(lang, 'doc_deleted_with_notify') as string).replace('%s', String(data.notifiedCount)), 'success')
+      } else {
+        toast(t(lang, 'doc_deleted_without_notify'), 'success')
+      }
+
+      // Show error notifications if any
+      if (data.notificationErrors?.length > 0) {
+        const names = data.notificationErrors.join(', ')
+        toast((t(lang, 'doc_notification_errors') as string).replace('%s', names), 'error')
+      }
     },
     onError: (err: any) => toast(err?.response?.data?.message ?? t(lang, 'errorSaving'), 'error'),
   })
 
   const handleSave = (form: DoctorForm) => {
     if (reactivating) {
-      // Reactivate: update specialty if changed + set isActive=true
       updateMut.mutate({
         id: reactivating.id,
         data: {
@@ -569,9 +820,22 @@ export function DoctorsPage() {
     }
   }
 
+  const handleDeleteClick = (doctor: Doctor) => {
+    setDeleteTarget(doctor)
+    deleteCheckMut.mutate(doctor.id)
+  }
+
+  const handleConfirmDelete = (notify: boolean, customMessage?: string) => {
+    if (!deleteTarget) return
+    confirmDeleteMut.mutate({ id: deleteTarget.id, notify, customMessage })
+  }
+
   const openAdd = () => { setEditing(null); setReactivating(null); setModalOpen(true) }
-  const openEdit = (doctor: Doctor) => { setEditing(doctor); setReactivating(null); setModalOpen(true) }
-  const openReactivate = (doctor: Doctor) => { setReactivating(doctor); setEditing(null); setModalOpen(true) }
+  const openEdit = (doctor: Doctor) => {
+    if (doctor.isActive) { setEditing(doctor); setReactivating(null) }
+    else { setReactivating(doctor); setEditing(null) }
+    setModalOpen(true)
+  }
 
   const saving = createMut.isPending || updateMut.isPending
 
@@ -616,9 +880,7 @@ export function DoctorsPage() {
               specialtyIsActive={specialtyMap.get(doctor.specialtyId)?.isActive ?? true}
               lang={lang}
               onEdit={() => openEdit(doctor)}
-              onDelete={() => setDeleteTarget(doctor)}
-              onHardDelete={() => setHardDeleteTarget(doctor)}
-              onReactivate={() => openReactivate(doctor)}
+              onDelete={() => handleDeleteClick(doctor)}
             />
           ))}
 
@@ -640,9 +902,7 @@ export function DoctorsPage() {
                   specialtyIsActive={specialtyMap.get(doctor.specialtyId)?.isActive ?? true}
                   lang={lang}
                   onEdit={() => openEdit(doctor)}
-                  onDelete={() => setDeleteTarget(doctor)}
-                  onHardDelete={() => setHardDeleteTarget(doctor)}
-                  onReactivate={() => openReactivate(doctor)}
+                  onDelete={() => handleDeleteClick(doctor)}
                 />
               ))}
             </>
@@ -674,23 +934,14 @@ export function DoctorsPage() {
         specialties={specialties ?? []}
       />
 
-      {/* Deactivate confirm */}
-      <ConfirmDialog
-        open={!!deleteTarget}
-        onClose={() => setDeleteTarget(null)}
-        onConfirm={() => deleteTarget && deleteMut.mutate(deleteTarget.id)}
+      {/* Smart Delete Modal */}
+      <DeleteDoctorModal
+        open={deleteModalOpen}
+        onClose={() => { setDeleteModalOpen(false); setDeleteTarget(null); setDeleteCheckResult(null) }}
+        doctor={deleteTarget}
+        deleteCheck={deleteCheckResult}
         lang={lang}
-        loading={deleteMut.isPending}
-      />
-
-      {/* Permanent delete confirm */}
-      <ConfirmDialog
-        open={!!hardDeleteTarget}
-        onClose={() => setHardDeleteTarget(null)}
-        onConfirm={() => hardDeleteTarget && hardDeleteMut.mutate(hardDeleteTarget.id)}
-        lang={lang}
-        loading={hardDeleteMut.isPending}
-        permanent
+        onDelete={handleConfirmDelete}
       />
     </div>
   )
