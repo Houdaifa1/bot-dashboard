@@ -22,21 +22,21 @@ api.interceptors.response.use(
   }
 )
 
-// Auth
+// ── Auth ──────────────────────────────────────────────────────────────────────
 export const login = (email: string, password: string) =>
   api.post('/api/admin/v1/auth/login', { email, password }).then(r => r.data)
 
-// Stats
+// ── Stats ─────────────────────────────────────────────────────────────────────
 export const getStats = () =>
   api.get('/api/admin/v1/stats').then(r => r.data)
 
-// Clinic
+// ── Clinic ────────────────────────────────────────────────────────────────────
 export const getClinic = () =>
   api.get('/api/admin/v1/clinics').then(r => r.data)
 export const updateClinic = (data: any) =>
   api.patch('/api/admin/v1/clinics', data).then(r => r.data)
 
-// Bot Messages
+// ── Bot Messages ──────────────────────────────────────────────────────────────
 export const getBotMessages = (clinicId: string, language?: string) =>
   api.get(`/api/admin/v1/clinic/${clinicId}/messages`, {
     params: language ? { language } : {},
@@ -44,7 +44,7 @@ export const getBotMessages = (clinicId: string, language?: string) =>
 export const updateBotMessage = (clinicId: string, key: string, language: string, body: string) =>
   api.patch(`/api/admin/v1/clinic/${clinicId}/messages/${key}/${language}`, { body }).then(r => r.data)
 
-// Specialties
+// ── Specialties ───────────────────────────────────────────────────────────────
 export const getSpecialties = (language?: string) =>
   api.get('/api/admin/v1/specialties', { params: language ? { language } : {} }).then(r => r.data)
 export const createSpecialty = (data: any) =>
@@ -56,19 +56,31 @@ export const deleteSpecialty = (id: string) =>
 export const hardDeleteSpecialty = (id: string) =>
   api.delete(`/api/admin/v1/specialties/${id}/hard`).then(r => r.data)
 
-// Doctors
+// ── Doctors ───────────────────────────────────────────────────────────────────
 export const getDoctors = (specialtyId?: string) =>
   api.get('/api/admin/v1/doctors', { params: specialtyId ? { specialtyId } : {} }).then(r => r.data)
 export const createDoctor = (data: any) =>
   api.post('/api/admin/v1/doctors', data).then(r => r.data)
 export const updateDoctor = (id: string, data: any) =>
   api.patch(`/api/admin/v1/doctors/${id}`, data).then(r => r.data)
+
+// Activate (toggle isActive → true, re-links orphaned appointments)
+export const activateDoctor = (id: string) =>
+  api.patch(`/api/admin/v1/doctors/${id}/activate`).then(r => r.data)
+
+// Deactivate (soft — doctor record stays, appointments keep doctorId)
+export const deactivateDoctor = (id: string) =>
+  api.delete(`/api/admin/v1/doctors/${id}/deactivate`).then(r => r.data)
+export const confirmDeactivateDoctor = (id: string, data: { notify: boolean; customMessage?: string }) =>
+  api.delete(`/api/admin/v1/doctors/${id}/deactivate/confirm`, { data }).then(r => r.data)
+
+// Delete (hard — nulls doctorId on all appointments, preserves doctorName)
 export const deleteDoctor = (id: string) =>
   api.delete(`/api/admin/v1/doctors/${id}`).then(r => r.data)
 export const confirmDeleteDoctor = (id: string, data: { notify: boolean; customMessage?: string }) =>
   api.delete(`/api/admin/v1/doctors/${id}/confirm`, { data }).then(r => r.data)
 
-// Time Slots
+// ── Time Slots ────────────────────────────────────────────────────────────────
 export const getTimeSlots = (doctorId: string) =>
   api.get(`/api/admin/v1/doctors/${doctorId}/timeslots`).then(r => r.data)
 export const createTimeSlot = (doctorId: string, data: any) =>
@@ -78,7 +90,7 @@ export const updateTimeSlot = (id: string, data: any) =>
 export const deleteTimeSlot = (id: string) =>
   api.delete(`/api/admin/v1/timeslots/${id}`).then(r => r.data)
 
-// FAQs
+// ── FAQs ──────────────────────────────────────────────────────────────────────
 export const getFaqs = (language?: string) =>
   api.get('/api/admin/v1/faqs', { params: { ...(language ? { language } : {}), includeInactive: 'true' } }).then(r => r.data)
 export const createFaq = (data: any) =>
@@ -90,7 +102,7 @@ export const deleteFaq = (id: string) =>
 export const hardDeleteFaq = (id: string) =>
   api.delete(`/api/admin/v1/faqs/${id}/hard`).then(r => r.data)
 
-// Appointments
+// ── Appointments ──────────────────────────────────────────────────────────────
 export const getAppointments = (params?: any) =>
   api.get('/api/admin/v1/appointments', { params }).then(r => r.data)
 export const updateAppointmentStatus = (id: string, status: string) =>
@@ -98,7 +110,7 @@ export const updateAppointmentStatus = (id: string, status: string) =>
 export const deleteAppointment = (id: string) =>
   api.delete(`/api/admin/v1/appointments/${id}`).then(r => r.data)
 
-// Handoff
+// ── Handoff ───────────────────────────────────────────────────────────────────
 export const getHandoffSessions = () =>
   api.get('/api/admin/v1/handoff').then(r => r.data)
 export const resolveHandoff = (phone: string) =>
