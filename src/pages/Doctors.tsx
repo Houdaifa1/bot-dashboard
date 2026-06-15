@@ -81,19 +81,7 @@ function DoctorModal({
     ? `${t(lang, 'edit')} ${initial?.name ?? ''}`
     : t(lang, 'doc_add')
 
-  // Group specialties by slug → show "FR label / EN label" as option label
-  const specMap = new Map<string, Specialty[]>()
-  for (const s of specialties) {
-    const arr = specMap.get(s.slug) ?? []
-    arr.push(s)
-    specMap.set(s.slug, arr)
-  }
-  // Sort by displayOrder of first in group
-  const specGroups = Array.from(specMap.entries()).sort((a, b) => {
-    const oa = specialties.find(s => s.id === a[1][0]?.id)?.displayOrder ?? 0
-    const ob = specialties.find(s => s.id === b[1][0]?.id)?.displayOrder ?? 0
-    return oa - ob
-  })
+  const sortedSpecs = [...(specialties ?? [])].sort((a, b) => a.displayOrder - b.displayOrder)
 
   return (
     <Modal open={open} onClose={onClose} title={title} size="md">
@@ -123,19 +111,13 @@ function DoctorModal({
             required
           >
             <option value="">—</option>
-            {specGroups.map(([slug, specs]) => {
-              const fr = specs.find(s => s.language === 'FR')
-              const en = specs.find(s => s.language === 'EN')
-              const label = fr
-                ? en
-                  ? `${fr.label} / ${en.label}`
-                  : fr.label
-                : en?.label ?? slug
-              // Use the first active specialty's ID, or the first one
-              const id = specs.find(s => s.isActive)?.id ?? specs[0]?.id
-              if (!id) return null
+            {sortedSpecs.map(spec => {
+              const labels = (spec.labels ?? {}) as Record<string, string>
+              const fr = labels['FR'] ?? ''
+              const en = labels['EN'] ?? ''
+              const label = fr && en ? `${fr} / ${en}` : fr || en || spec.slug
               return (
-                <option key={slug} value={id}>
+                <option key={spec.id} value={spec.id}>
                   {label}
                 </option>
               )
@@ -517,25 +499,11 @@ export function DoctorsPage() {
   // Build specialty label lookup: specialtyId → "FR label / EN label"
   const specialtyLabelMap = new Map<string, string>()
   if (specialties) {
-    // Group by slug first
-    const slugMap = new Map<string, Specialty[]>()
     for (const s of specialties) {
-      const arr = slugMap.get(s.slug) ?? []
-      arr.push(s)
-      slugMap.set(s.slug, arr)
-    }
-    // For each slug, build a display label
-    for (const [, specs] of slugMap) {
-      const fr = specs.find(s => s.language === 'FR')
-      const en = specs.find(s => s.language === 'EN')
-      const display = fr
-        ? en
-          ? `${fr.label} / ${en.label}`
-          : fr.label
-        : en?.label ?? specs[0]?.slug ?? '?'
-      for (const spec of specs) {
-        specialtyLabelMap.set(spec.id, display)
-      }
+      const labels = (s.labels ?? {}) as Record<string, string>
+      const fr = labels['FR'] ?? ''
+      const en = labels['EN'] ?? ''
+      specialtyLabelMap.set(s.id, fr && en ? `${fr} / ${en}` : fr || en || s.slug)
     }
   }
 
@@ -546,7 +514,10 @@ export function DoctorsPage() {
       toast(t(lang, 'doc_created'), 'success')
       setModalOpen(false)
     },
-    onError: () => toast(t(lang, 'errorSaving'), 'error'),
+    onError: (err: any) => {
+      const msg = err?.response?.data?.message ?? err?.message ?? t(lang, 'errorSaving')
+      toast(msg, 'error')
+    },
   })
 
   const updateMut = useMutation({
@@ -558,7 +529,10 @@ export function DoctorsPage() {
       setModalOpen(false)
       setEditing(null)
     },
-    onError: () => toast(t(lang, 'errorSaving'), 'error'),
+    onError: (err: any) => {
+      const msg = err?.response?.data?.message ?? err?.message ?? t(lang, 'errorSaving')
+      toast(msg, 'error')
+    },
   })
 
   const deleteMut = useMutation({

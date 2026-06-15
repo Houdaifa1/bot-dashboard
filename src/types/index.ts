@@ -10,9 +10,8 @@ export interface BotMessage {
 }
 
 export interface Specialty {
-  id: string; clinicId: string; label: string; language: string;
+  id: string; clinicId: string; labels: Record<string, string>;
   slug: string; isActive: boolean; displayOrder: number; createdAt: string;
-  updatedAt?: string;
 }
 
 export interface Doctor {
