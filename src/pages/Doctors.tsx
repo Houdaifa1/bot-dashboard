@@ -296,7 +296,10 @@ function DoctorCard({
       queryClient.invalidateQueries({ queryKey: ['timeslots', doctor.id] })
       toast(t(lang, 'slot_deleted'), 'success')
     },
-    onError: () => toast(t(lang, 'errorSaving'), 'error'),
+    onError: (err: any) => {
+      const msg = err?.response?.data?.message ?? err?.message ?? t(lang, 'errorSaving')
+      toast(msg, 'error')
+    },
   })
 
   const [slotModalOpen, setSlotModalOpen] = useState(false)
@@ -309,7 +312,10 @@ function DoctorCard({
       toast(t(lang, 'slot_created'), 'success')
       setSlotModalOpen(false)
     },
-    onError: () => toast(t(lang, 'errorSaving'), 'error'),
+    onError: (err: any) => {
+      const msg = err?.response?.data?.message ?? err?.message ?? t(lang, 'errorSaving')
+      toast(msg, 'error')
+    },
   })
 
   const updateSlotMut = useMutation({
@@ -321,7 +327,10 @@ function DoctorCard({
       setSlotModalOpen(false)
       setEditSlot(null)
     },
-    onError: () => toast(t(lang, 'errorSaving'), 'error'),
+    onError: (err: any) => {
+      const msg = err?.response?.data?.message ?? err?.message ?? t(lang, 'errorSaving')
+      toast(msg, 'error')
+    },
   })
 
   const handleSlotSave = (form: SlotForm) => {
