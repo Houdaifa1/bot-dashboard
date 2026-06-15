@@ -4,6 +4,7 @@ export interface Clinic {
   isActive: boolean; createdAt: string; updatedAt: string;
 }
 
+
 export interface BotMessage {
   id: string; clinicId: string; key: string; body: string;
   language: string; updatedAt: string;
