@@ -15,7 +15,7 @@ export interface Specialty {
 }
 
 export interface Doctor {
-  id: string; clinicId: string; specialtyId: string; name: string;
+  id: string; clinicId: string; specialtyId: string | null; name: string;
   bio?: string; isActive: boolean; displayOrder: number; createdAt: string;
   updatedAt?: string;
 }

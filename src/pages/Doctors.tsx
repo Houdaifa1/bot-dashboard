@@ -791,7 +791,8 @@ export function DoctorsPage() {
   const specialtyMap = new Map<string, Specialty>()
   if (specialties) { for (const s of specialties) specialtyMap.set(s.id, s) }
 
-  const getSpecialtyLabel = (id: string) => {
+  const getSpecialtyLabel = (id: string | null) => {
+    if (!id) return lang === 'FR' ? 'Aucune spécialité' : 'No specialty'
     const s = specialtyMap.get(id)
     if (!s) return id
     const labels = (s.labels ?? {}) as Record<string, string>
@@ -925,9 +926,9 @@ export function DoctorsPage() {
   }
 
   const handleActivate = (doctor: Doctor) => {
-    const spec = specialtyMap.get(doctor.specialtyId)
+    const spec = doctor.specialtyId ? specialtyMap.get(doctor.specialtyId) : undefined
     if (!spec?.isActive) {
-      // Specialty is inactive — open the reactivate modal to pick a new one
+      // Specialty is inactive or missing — open the reactivate modal to pick one
       openEdit(doctor)
       return
     }
@@ -974,7 +975,7 @@ export function DoctorsPage() {
               key={doctor.id}
               doctor={doctor}
               specialtyLabel={getSpecialtyLabel(doctor.specialtyId)}
-              specialtyIsActive={specialtyMap.get(doctor.specialtyId)?.isActive ?? true}
+              specialtyIsActive={!!doctor.specialtyId && (specialtyMap.get(doctor.specialtyId)?.isActive ?? false)}
               lang={lang}
               onEdit={() => openEdit(doctor)}
               onActivate={() => handleActivate(doctor)}
@@ -1001,7 +1002,7 @@ export function DoctorsPage() {
                   key={doctor.id}
                   doctor={doctor}
                   specialtyLabel={getSpecialtyLabel(doctor.specialtyId)}
-                  specialtyIsActive={specialtyMap.get(doctor.specialtyId)?.isActive ?? true}
+                  specialtyIsActive={!!doctor.specialtyId && (specialtyMap.get(doctor.specialtyId)?.isActive ?? false)}
                   lang={lang}
                   onEdit={() => openEdit(doctor)}
                   onActivate={() => handleActivate(doctor)}
@@ -1024,9 +1025,9 @@ export function DoctorsPage() {
         reactivateMode={!!reactivating}
         initial={
           reactivating
-            ? { name: reactivating.name, bio: reactivating.bio ?? '', specialtyId: reactivating.specialtyId, displayOrder: reactivating.displayOrder }
+            ? { name: reactivating.name, bio: reactivating.bio ?? '', specialtyId: reactivating.specialtyId ?? '', displayOrder: reactivating.displayOrder }
             : editing
-              ? { name: editing.name, bio: editing.bio ?? '', specialtyId: editing.specialtyId, displayOrder: editing.displayOrder }
+              ? { name: editing.name, bio: editing.bio ?? '', specialtyId: editing.specialtyId ?? '', displayOrder: editing.displayOrder }
               : null
         }
         lang={lang}
