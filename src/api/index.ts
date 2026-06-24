@@ -135,6 +135,8 @@ export const stopCampaign = (id: string) =>
   api.post(`/api/admin/v1/campaigns/${id}/stop`).then(r => r.data)
 export const cancelCampaignSchedule = (id: string) =>
   api.post(`/api/admin/v1/campaigns/${id}/cancel-schedule`).then(r => r.data)
+export const deleteCampaign = (id: string) =>
+  api.delete(`/api/admin/v1/campaigns/${id}`).then(r => r.data)
 export const previewCampaign = (id: string) =>
   api.get(`/api/admin/v1/campaigns/${id}/preview`).then(r => r.data)
 

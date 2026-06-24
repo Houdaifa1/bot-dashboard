@@ -3,9 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Plus, Play, Pause, Square, CalendarClock, Users, MessageSquare,
-  AlertTriangle, CheckCircle2, XCircle, Loader2, Ban, ChevronRight,
+  AlertTriangle, CheckCircle2, XCircle, Loader2, Ban, ChevronRight, Trash2,
 } from 'lucide-react'
-import { getCampaigns, getClinic, createCampaign, launchCampaign, pauseCampaign, resumeCampaign, stopCampaign, cancelCampaignSchedule } from '../api'
+import { getCampaigns, getClinic, createCampaign, launchCampaign, pauseCampaign, resumeCampaign, stopCampaign, cancelCampaignSchedule, deleteCampaign } from '../api'
 import { useAuth } from '../store/auth'
 import { useToast } from '../store/toast'
 import { PageHeader, PageLoader, Modal, Empty, Field } from '../components/ui'
@@ -187,6 +187,12 @@ export function CampaignsPage() {
     onError: (err: any) => toast(lang === 'FR' ? "Erreur lors de l'annulation" : (err?.response?.data?.message ?? 'Failed to cancel schedule'), 'error'),
   })
 
+  const deleteMut = useMutation({
+    mutationFn: (id: string) => deleteCampaign(id),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['campaigns'] }); toast(lang === 'FR' ? 'Campagne supprimée' : 'Campaign deleted', 'success') },
+    onError: (err: any) => toast(lang === 'FR' ? 'Erreur lors de la suppression' : (err?.response?.data?.message ?? 'Failed to delete campaign'), 'error'),
+  })
+
   if (isLoading) return <PageLoader />
 
   if (isError) {
@@ -273,6 +279,16 @@ export function CampaignsPage() {
                           <Square size={12} className="mr-1" />{lang === 'FR' ? 'Arrêter' : 'Stop'}
                         </button>
                       </>
+                    )}
+                    {/* Delete button — shown on DRAFT, STOPPED, COMPLETED, SCHEDULED */}
+                    {(c.status === 'DRAFT' || c.status === 'STOPPED' || c.status === 'COMPLETED' || c.status === 'SCHEDULED') && (
+                      <button className="btn-ghost h-8 w-8 p-0 text-red-500 hover:text-red-600 dark:text-red-400" onClick={() => {
+                        if (confirm(lang === 'FR' ? 'Supprimer cette campagne ?' : 'Delete this campaign?')) {
+                          deleteMut.mutate(c.id)
+                        }
+                      }} disabled={deleteMut.isPending}>
+                        <Trash2 size={14} />
+                      </button>
                     )}
                     {/* View patients button — shown if campaign has been launched */}
                     {c.targetedCount > 0 && (
