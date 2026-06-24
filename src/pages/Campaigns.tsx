@@ -127,7 +127,7 @@ export function CampaignsPage() {
       toast(lang === 'FR' ? 'Campagne créée' : 'Campaign created', 'success')
       setCreateOpen(false)
     },
-    onError: (err: any) => toast(err?.response?.data?.message ?? 'Error', 'error'),
+    onError: (err: any) => toast(lang === 'FR' ? 'Erreur lors de la création' : (err?.response?.data?.message ?? 'Failed to create campaign'), 'error'),
   })
 
   const launchMut = useMutation({
@@ -136,31 +136,31 @@ export function CampaignsPage() {
       queryClient.invalidateQueries({ queryKey: ['campaigns'] })
       toast(lang === 'FR' ? 'Campagne lancée' : 'Campaign launched', 'success')
     },
-    onError: (err: any) => toast(err?.response?.data?.message ?? 'Error', 'error'),
+    onError: (err: any) => toast(lang === 'FR' ? 'Erreur lors du lancement' : (err?.response?.data?.message ?? 'Failed to launch campaign'), 'error'),
   })
 
   const pauseMut = useMutation({
     mutationFn: (id: string) => pauseCampaign(id),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['campaigns'] }); toast(lang === 'FR' ? 'Campagne en pause' : 'Campaign paused', 'success') },
-    onError: (err: any) => toast(err?.response?.data?.message ?? 'Error', 'error'),
+    onError: (err: any) => toast(lang === 'FR' ? 'Erreur lors de la pause' : (err?.response?.data?.message ?? 'Failed to pause campaign'), 'error'),
   })
 
   const resumeMut = useMutation({
     mutationFn: (id: string) => resumeCampaign(id),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['campaigns'] }); toast(lang === 'FR' ? 'Campagne reprise' : 'Campaign resumed', 'success') },
-    onError: (err: any) => toast(err?.response?.data?.message ?? 'Error', 'error'),
+    onError: (err: any) => toast(lang === 'FR' ? 'Erreur lors de la reprise' : (err?.response?.data?.message ?? 'Failed to resume campaign'), 'error'),
   })
 
   const stopMut = useMutation({
     mutationFn: (id: string) => stopCampaign(id),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['campaigns'] }); toast(lang === 'FR' ? 'Campagne arrêtée' : 'Campaign stopped', 'success') },
-    onError: (err: any) => toast(err?.response?.data?.message ?? 'Error', 'error'),
+    onError: (err: any) => toast(lang === 'FR' ? "Erreur lors de l'arrêt" : (err?.response?.data?.message ?? 'Failed to stop campaign'), 'error'),
   })
 
   const cancelScheduleMut = useMutation({
     mutationFn: (id: string) => cancelCampaignSchedule(id),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['campaigns'] }); toast(lang === 'FR' ? 'Programmation annulée' : 'Schedule cancelled', 'success') },
-    onError: (err: any) => toast(err?.response?.data?.message ?? 'Error', 'error'),
+    onError: (err: any) => toast(lang === 'FR' ? "Erreur lors de l'annulation" : (err?.response?.data?.message ?? 'Failed to cancel schedule'), 'error'),
   })
 
   if (isLoading) return <PageLoader />
