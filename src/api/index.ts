@@ -115,3 +115,45 @@ export const getHandoffSessions = () =>
   api.get('/api/admin/v1/handoff').then(r => r.data)
 export const resolveHandoff = (phone: string) =>
   api.post('/api/admin/v1/handoff/resolve', { phone }).then(r => r.data)
+
+// ── Campaigns ────────────────────────────────────────────────────────────────
+export const getCampaigns = () =>
+  api.get('/api/admin/v1/campaigns').then(r => r.data)
+export const getCampaign = (id: string) =>
+  api.get(`/api/admin/v1/campaigns/${id}`).then(r => r.data)
+export const createCampaign = (data: any) =>
+  api.post('/api/admin/v1/campaigns', data).then(r => r.data)
+export const updateCampaign = (id: string, data: any) =>
+  api.patch(`/api/admin/v1/campaigns/${id}`, data).then(r => r.data)
+export const launchCampaign = (id: string) =>
+  api.post(`/api/admin/v1/campaigns/${id}/launch`).then(r => r.data)
+export const pauseCampaign = (id: string) =>
+  api.post(`/api/admin/v1/campaigns/${id}/pause`).then(r => r.data)
+export const resumeCampaign = (id: string) =>
+  api.post(`/api/admin/v1/campaigns/${id}/resume`).then(r => r.data)
+export const stopCampaign = (id: string) =>
+  api.post(`/api/admin/v1/campaigns/${id}/stop`).then(r => r.data)
+export const cancelCampaignSchedule = (id: string) =>
+  api.post(`/api/admin/v1/campaigns/${id}/cancel-schedule`).then(r => r.data)
+export const previewCampaign = (id: string) =>
+  api.get(`/api/admin/v1/campaigns/${id}/preview`).then(r => r.data)
+
+// ── Complaints ───────────────────────────────────────────────────────────────
+export const getComplaints = (params?: any) =>
+  api.get('/api/admin/v1/complaints', { params }).then(r => r.data)
+export const getComplaint = (id: string) =>
+  api.get(`/api/admin/v1/complaints/${id}`).then(r => r.data)
+export const updateComplaintStatus = (id: string, status: string) =>
+  api.patch(`/api/admin/v1/complaints/${id}/status`, { status }).then(r => r.data)
+export const updateComplaintStaffNote = (id: string, staffNote: string) =>
+  api.patch(`/api/admin/v1/complaints/${id}/staff-note`, { staffNote }).then(r => r.data)
+
+// ── Booking Requests ─────────────────────────────────────────────────────────
+export const getBookingRequests = (params?: any) =>
+  api.get('/api/admin/v1/booking-requests', { params }).then(r => r.data)
+export const getBookingRequest = (id: string) =>
+  api.get(`/api/admin/v1/booking-requests/${id}`).then(r => r.data)
+export const confirmBookingRequest = (id: string, data: { appointmentDate: string; appointmentTime: string }) =>
+  api.post(`/api/admin/v1/booking-requests/${id}/confirm`, data).then(r => r.data)
+export const rejectBookingRequest = (id: string) =>
+  api.post(`/api/admin/v1/booking-requests/${id}/reject`).then(r => r.data)

@@ -10,6 +10,7 @@ const fr = {
   nav_faqs:         'FAQ',
   nav_appointments: 'Rendez-vous',
   nav_handoff:      'Sessions en direct',
+  nav_campaigns:    'Campagnes',
   nav_logout:       'Déconnexion',
 
   // common actions
@@ -219,6 +220,7 @@ const en: typeof fr = {
   nav_faqs:         'FAQs',
   nav_appointments: 'Appointments',
   nav_handoff:      'Live Sessions',
+  nav_campaigns:    'Campaigns',
   nav_logout:       'Log out',
 
   save:          'Save changes',

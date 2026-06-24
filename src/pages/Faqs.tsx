@@ -223,7 +223,7 @@ export function FaqsPage() {
 
   const updateMut = useMutation({
     mutationFn: (payload: { id: string; data: Partial<FAQ> }[]) =>
-      Promise.all(payload.map(p => updateFaq(p.id, p.data))),
+      Promise.all(payload.map(p => updateFaq( p.id, p.data))),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['faqs'] })
       toast(t(lang, 'faq_updated'), 'success')
