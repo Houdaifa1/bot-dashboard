@@ -2,6 +2,9 @@ export interface Clinic {
   id: string; name: string; phone: string; address?: string;
   timezone: string; defaultLanguage: string; supportedLangs: string[];
   isActive: boolean; createdAt: string; updatedAt: string;
+  campaignDelayHours: number; reminderCount: number;
+  reminderIntervalHours: number; aiMaxTurns: number;
+  notificationPhone?: string;
 }
 
 

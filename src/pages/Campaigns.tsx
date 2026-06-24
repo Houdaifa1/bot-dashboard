@@ -5,11 +5,11 @@ import {
   Plus, Play, Pause, Square, CalendarClock, Users, MessageSquare,
   AlertTriangle, CheckCircle2, XCircle, Loader2, Ban, ChevronRight,
 } from 'lucide-react'
-import { getCampaigns, createCampaign, launchCampaign, pauseCampaign, resumeCampaign, stopCampaign, cancelCampaignSchedule } from '../api'
+import { getCampaigns, getClinic, createCampaign, launchCampaign, pauseCampaign, resumeCampaign, stopCampaign, cancelCampaignSchedule } from '../api'
 import { useAuth } from '../store/auth'
 import { useToast } from '../store/toast'
 import { PageHeader, PageLoader, Modal, Empty, Field } from '../components/ui'
-import type { Campaign, CampaignStatus } from '../types'
+import type { Campaign, CampaignStatus, Clinic } from '../types'
 
 // ── Status config ────────────────────────────────────────────────────────────
 
@@ -35,6 +35,12 @@ function CreateCampaignModal({
   const [filterDateFrom, setFilterDateFrom] = useState('')
   const [filterDateTo, setFilterDateTo] = useState('')
   const [scheduledStartAt, setScheduledStartAt] = useState('')
+  const [delayHours, setDelayHours] = useState<number | null>(null)
+
+  const { data: clinic } = useQuery<Clinic>({
+    queryKey: ['clinic-settings'],
+    queryFn: () => getClinic(),
+  })
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -45,6 +51,7 @@ function CreateCampaignModal({
       ...(filterDateFrom && { filterDateFrom }),
       ...(filterDateTo && { filterDateTo }),
       ...(scheduledStartAt && { scheduledStartAt: new Date(scheduledStartAt).toISOString() }),
+      ...(delayHours !== null && { delayHours }),
     })
   }
 
@@ -74,6 +81,23 @@ function CreateCampaignModal({
             <input type="date" className="input h-10" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} />
           </Field>
         </div>
+
+        <Field label={lang === 'FR' ? "Délai avant premier envoi (heures)" : 'Delay before first message (hours)'}>
+          <input
+            type="number"
+            min={0}
+            max={168}
+            className="input h-10"
+            value={delayHours ?? clinic?.campaignDelayHours ?? 24}
+            onChange={e => setDelayHours(parseInt(e.target.value) || 0)}
+          />
+          <p className="text-xs text-neutral-400 mt-1">
+            {lang === 'FR'
+              ? `Par défaut: ${clinic?.campaignDelayHours ?? 24}h (réglage clinic). 0 = envoi immédiat.`
+              : `Default: ${clinic?.campaignDelayHours ?? 24}h (clinic setting). 0 = send immediately.`
+            }
+          </p>
+        </Field>
 
         <Field label={lang === 'FR' ? 'Programmer le démarrage (optionnel)' : 'Schedule start (optional)'}>
           <input type="datetime-local" className="input h-10" value={scheduledStartAt} onChange={e => setScheduledStartAt(e.target.value)} />
