@@ -2,8 +2,7 @@ import { useState } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
-  ArrowLeft, Phone, Clock, User, Stethoscope, MessageSquare,
-  AlertTriangle, CheckCircle2, XCircle, Ban, Loader2, ChevronDown, ChevronUp,
+  ArrowLeft, Phone, Clock, Stethoscope, MessageSquare, XCircle,
 } from 'lucide-react'
 import { getCampaign } from '../api'
 import { useAuth } from '../store/auth'
@@ -156,7 +155,6 @@ export function CampaignPatientsPage() {
         {statusFilters.map(s => {
           const isActive = statusFilter === s
           const count = s === 'ALL' ? patients.length : (counts[s] || 0)
-          const style = s === 'ALL' ? null : STATUS_STYLES[s]
           return (
             <button
               key={s}
