@@ -118,15 +118,19 @@ function CreateCampaignModal({
 
 // ── Stat Chip ────────────────────────────────────────────────────────────────
 
-function StatChip({ icon: Icon, value, label, color }: {
-  icon: any; value: number; label: string; color: string
+function StatChip({ icon: Icon, value, label, color, onClick }: {
+  icon: any; value: number; label: string; color: string; onClick?: () => void
 }) {
   if (value === 0) return null
   return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${color}`}>
+    <button
+      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium transition-all hover:opacity-80 ${color} ${onClick ? 'cursor-pointer' : ''}`}
+      onClick={onClick}
+      disabled={!onClick}
+    >
       <Icon size={12} />
       {value} {label}
-    </span>
+    </button>
   )
 }
 
@@ -313,14 +317,19 @@ export function CampaignsPage() {
                   {c.delayHours && <span>⏱ {c.delayHours}h delay</span>}
                 </div>
 
-                {/* Stats chips */}
+                {/* Stats chips — clickable to filter patients */}
                 <div className="flex flex-wrap gap-2">
-                  <StatChip icon={Users} value={c.targetedCount} label="targeted" color="bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300" />
-                  <StatChip icon={MessageSquare} value={c.contactedCount} label="contacted" color="bg-purple-50 text-purple-700 dark:bg-purple-900/20 dark:text-purple-300" />
-                  <StatChip icon={MessageSquare} value={c.repliedCount} label="replied" color="bg-indigo-50 text-indigo-700 dark:bg-indigo-900/20 dark:text-indigo-300" />
+                  <StatChip icon={Users} value={c.targetedCount} label="targeted" color="bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300"
+                    onClick={() => navigate(`/campaigns/${c.id}/patients`)} />
+                  <StatChip icon={MessageSquare} value={c.contactedCount} label="contacted" color="bg-purple-50 text-purple-700 dark:bg-purple-900/20 dark:text-purple-300"
+                    onClick={() => navigate(`/campaigns/${c.id}/patients?status=CONTACTED`)} />
+                  <StatChip icon={MessageSquare} value={c.repliedCount} label="replied" color="bg-indigo-50 text-indigo-700 dark:bg-indigo-900/20 dark:text-indigo-300"
+                    onClick={() => navigate(`/campaigns/${c.id}/patients?status=REPLIED`)} />
                   <StatChip icon={AlertTriangle} value={c.complainedCount} label="complained" color="bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300" />
-                  <StatChip icon={CheckCircle2} value={c.completedCount} label="completed" color="bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-300" />
-                  <StatChip icon={XCircle} value={c.noResponseCount} label="no response" color="bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300" />
+                  <StatChip icon={CheckCircle2} value={c.completedCount} label="completed" color="bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-300"
+                    onClick={() => navigate(`/campaigns/${c.id}/patients?status=COMPLETED`)} />
+                  <StatChip icon={XCircle} value={c.noResponseCount} label="no response" color="bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-300"
+                    onClick={() => navigate(`/campaigns/${c.id}/patients?status=NO_RESPONSE`)} />
                 </div>
 
                 {/* Created date */}
