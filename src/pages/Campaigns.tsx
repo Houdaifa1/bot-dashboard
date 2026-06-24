@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Plus, Play, Pause, Square, CalendarClock, Users, MessageSquare,
-  AlertTriangle, CheckCircle2, XCircle, Loader2, Eye, Ban, ChevronRight,
+  AlertTriangle, CheckCircle2, XCircle, Loader2, Ban, ChevronRight,
 } from 'lucide-react'
 import { getCampaigns, createCampaign, launchCampaign, pauseCampaign, resumeCampaign, stopCampaign, cancelCampaignSchedule } from '../api'
 import { useAuth } from '../store/auth'
