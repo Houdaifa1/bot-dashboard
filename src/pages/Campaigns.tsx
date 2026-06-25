@@ -8,7 +8,7 @@ import {
 import { getCampaigns, getClinic, createCampaign, launchCampaign, pauseCampaign, resumeCampaign, stopCampaign, cancelCampaignSchedule, deleteCampaign } from '../api'
 import { useAuth } from '../store/auth'
 import { useToast } from '../store/toast'
-import { PageHeader, PageLoader, Modal, Empty, Field } from '../components/ui'
+import { PageHeader, PageLoader, Modal, ConfirmDialog, Empty, Field } from '../components/ui'
 import type { Campaign, CampaignStatus, Clinic } from '../types'
 
 // ── Status config ────────────────────────────────────────────────────────────
@@ -142,6 +142,7 @@ export function CampaignsPage() {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const [createOpen, setCreateOpen] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<Campaign | null>(null)
 
   const { data: campaigns, isLoading, isError, refetch } = useQuery<Campaign[]>({
     queryKey: ['campaigns'],
@@ -286,11 +287,7 @@ export function CampaignsPage() {
                     )}
                     {/* Delete button — shown on DRAFT, STOPPED, COMPLETED, SCHEDULED */}
                     {(c.status === 'DRAFT' || c.status === 'STOPPED' || c.status === 'COMPLETED' || c.status === 'SCHEDULED') && (
-                      <button className="btn-ghost h-8 w-8 p-0 text-red-500 hover:text-red-600 dark:text-red-400" onClick={() => {
-                        if (confirm(lang === 'FR' ? 'Supprimer cette campagne ?' : 'Delete this campaign?')) {
-                          deleteMut.mutate(c.id)
-                        }
-                      }} disabled={deleteMut.isPending}>
+                      <button className="btn-ghost h-8 w-8 p-0 text-red-500 hover:text-red-600 dark:text-red-400" onClick={() => setDeleteTarget(c)} disabled={deleteMut.isPending}>
                         <Trash2 size={14} />
                       </button>
                     )}
@@ -348,6 +345,18 @@ export function CampaignsPage() {
         onSave={(data) => createMut.mutate(data)}
         saving={createMut.isPending}
         lang={lang}
+      />
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={() => {
+          if (deleteTarget) deleteMut.mutate(deleteTarget.id)
+          setDeleteTarget(null)
+        }}
+        lang={lang}
+        loading={deleteMut.isPending}
+        permanent
       />
     </div>
   )
