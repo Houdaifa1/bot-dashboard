@@ -181,6 +181,25 @@ function ConversationDrawer({ session, lang, onClose }: {
 export function HandoffPage() {
   const { lang } = useAuth()
   const [selectedSession, setSelectedSession] = useState<HandoffSession | null>(null)
+  const [expandedSession, setExpandedSession] = useState<string | null>(null)
+  const [replyTexts, setReplyTexts] = useState<Record<string, string>>({})
+  const { toast } = useToast()
+  const queryClient = useQueryClient()
+
+  const sendMutation = useMutation({
+    mutationFn: ({ phone, message }: { phone: string; message: string }) =>
+      sendHandoffMessage(phone, message),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['handoff-sessions'] })
+      toast(lang === 'FR' ? 'Message envoyé' : 'Message sent', 'success')
+      setReplyTexts(prev => {
+        const next = { ...prev }
+        delete next[expandedSession ?? '']
+        return next
+      })
+    },
+    onError: (err: any) => toast(err?.response?.data?.message ?? 'Send failed', 'error'),
+  })
 
   const { data: sessions, isLoading, isError, refetch } = useQuery<HandoffSession[]>({
     queryKey: ['handoff-sessions'],
@@ -232,37 +251,112 @@ export function HandoffPage() {
         <Empty message={lang === 'FR' ? 'Aucune session en attente' : 'No pending handoffs'} />
       ) : (
         <div className="space-y-3">
-          {items.map(session => (
-            <div
-              key={session.phone}
-              className="card p-5 flex items-center justify-between gap-4 cursor-pointer hover:shadow-md transition-shadow"
-              onClick={() => setSelectedSession(session)}
-            >
-              <div className="flex items-center gap-4 min-w-0">
-                <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center shrink-0">
-                  <MessageSquare size={18} className="text-red-600 dark:text-red-400" />
-                </div>
-                <div className="min-w-0">
-                  <p className="font-medium text-neutral-800 dark:text-neutral-200 truncate">
-                    {session.patientName}
-                  </p>
-                  <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-0.5">
-                    {session.phone}
-                  </p>
-                  <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-0.5 line-clamp-1">
-                    {session.handoffReason}
-                  </p>
-                </div>
+          {items.map(session => {
+            const isExpanded = expandedSession === session.phone
+            return (
+              <div
+                key={session.phone}
+                className={`card transition-all ${isExpanded ? 'p-0 overflow-hidden' : 'p-5'}`}
+              >
+                {!isExpanded ? (
+                  <div
+                    className="flex items-center justify-between gap-4 cursor-pointer hover:shadow-md"
+                    onClick={() => setExpandedSession(session.phone)}
+                  >
+                    <div className="flex items-center gap-4 min-w-0">
+                      <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center shrink-0">
+                        <MessageSquare size={18} className="text-red-600 dark:text-red-400" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-medium text-neutral-800 dark:text-neutral-200 truncate">
+                          {session.patientName}
+                        </p>
+                        <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-0.5">
+                          {session.phone}
+                        </p>
+                        <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-0.5 line-clamp-1">
+                          {session.handoffReason}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <span className="text-xs text-neutral-400">{session.turnCount} turns</span>
+                      <div className="flex items-center gap-1 text-xs text-blue-500">
+                        <Bot size={12} />
+                        <span>AI</span>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="border-t border-neutral-200 dark:border-neutral-700">
+                    {/* Inline conversation */}
+                    <div className="p-4 max-h-[420px] overflow-y-auto space-y-3 bg-neutral-50 dark:bg-neutral-800/30">
+                      {session.messages.map((msg, i) => (
+                        <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                          <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 ${
+                            msg.role === 'user'
+                              ? 'bg-blue-600 text-white rounded-br-md'
+                              : 'bg-white dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 rounded-bl-md border border-neutral-200 dark:border-neutral-700'
+                          }`}>
+                            <p className="text-sm whitespace-pre-wrap">{parseMessageContent(msg.content)}</p>
+                            {msg.timestamp && (
+                              <p className={`text-[10px] mt-1 ${msg.role === 'user' ? 'text-blue-200' : 'text-neutral-400'}`}>
+                                {formatTime(msg.timestamp)}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Inline reply */}
+                    <div className="p-3 border-t border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900">
+                      <div className="flex items-end gap-2">
+                        <textarea
+                          rows={2}
+                          className="flex-1 resize-none rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder={lang === 'FR' ? 'Répondre à ce patient...' : 'Reply to this patient...'}
+                          value={replyTexts[session.phone] ?? ''}
+                          onChange={e => setReplyTexts(prev => ({ ...prev, [session.phone]: e.target.value }))}
+                        />
+                        <button
+                          className="shrink-0 w-10 h-10 rounded-xl bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center disabled:opacity-50"
+                          disabled={sendMutation.isPending || !(replyTexts[session.phone]?.trim())}
+                          onClick={() => {
+                            const text = replyTexts[session.phone]?.trim()
+                            if (!text) return
+                            sendMutation.mutate({ phone: session.phone, message: text })
+                          }}
+                        >
+                          {sendMutation.isPending
+                            ? <Loader2 size={16} className="animate-spin" />
+                            : <Send size={16} />}
+                        </button>
+                      </div>
+                      <div className="flex items-center justify-between mt-2">
+                        <button
+                          className="text-[11px] text-neutral-400 hover:text-neutral-600"
+                          onClick={() => setExpandedSession(null)}
+                        >
+                          {lang === 'FR' ? 'Fermer' : 'Close'}
+                        </button>
+                        <button
+                          className="text-[11px] text-red-500 hover:text-red-700 font-medium"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setExpandedSession(null)
+                            setSelectedSession(session)
+                          }}
+                        >
+                          {lang === 'FR' ? 'Ouvrir dans un volet' : 'Open in drawer'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
-              <div className="flex items-center gap-3 shrink-0">
-                <span className="text-xs text-neutral-400">{session.turnCount} turns</span>
-                <div className="flex items-center gap-1 text-xs text-blue-500">
-                  <Bot size={12} />
-                  <span>AI</span>
-                </div>
-              </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
 
