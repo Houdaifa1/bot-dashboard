@@ -8,6 +8,26 @@ import { useAuth } from '../store/auth'
 import { useToast } from '../store/toast'
 import { PageHeader, PageLoader, Empty } from '../components/ui'
 
+// Helper to parse message content (handles JSON stored by backend)
+function parseMessageContent(content: string): string {
+  const trimmed = content.trim();
+  if ((trimmed.startsWith('[') || trimmed.startsWith('{')) && (trimmed.endsWith(']') || trimmed.endsWith('}'))) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        // Extract text from content blocks (e.g., [{"type":"text","text":"Hello"}])
+        return parsed
+          .filter((block: any) => block.type === 'text')
+          .map((block: any) => block.text)
+          .join('\n\n');
+      }
+    } catch {
+      // Not valid JSON, return as-is
+    }
+  }
+  return content;
+}
+
 interface HandoffSession {
   campaignPatientId: string
   campaignId:        string
@@ -102,12 +122,12 @@ function ConversationDrawer({ session, lang, onClose }: {
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
           {localMsgs.map((msg, i) => (
             <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 ${
-                msg.role === 'user'
-                  ? 'bg-blue-600 text-white rounded-br-md'
-                  : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 rounded-bl-md'
-              }`}>
-                <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 ${
+                  msg.role === 'user'
+                    ? 'bg-blue-600 text-white rounded-br-md'
+                    : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 rounded-bl-md'
+                }`}>
+                  <p className="text-sm whitespace-pre-wrap">{parseMessageContent(msg.content)}</p>
                 {msg.timestamp && (
                   <p className={`text-[10px] mt-1 ${msg.role === 'user' ? 'text-blue-200' : 'text-neutral-400'}`}>
                     {formatTime(msg.timestamp)}

@@ -7,8 +7,29 @@ import {
 } from 'lucide-react'
 import { getCampaign, sendPatientMessage, resolvePatientConversation } from '../api'
 import { useAuth } from '../store/auth'
+import { useToast } from '../store/toast'
 import { PageHeader, PageLoader, Empty } from '../components/ui'
 import type { Campaign, CampaignPatient, CampaignPatientStatus, CampaignMessage } from '../types'
+
+// Helper to parse message content (handles JSON stored by backend)
+function parseMessageContent(content: string): string {
+  const trimmed = content.trim();
+  if ((trimmed.startsWith('[') || trimmed.startsWith('{')) && (trimmed.endsWith(']') || trimmed.endsWith('}'))) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        // Extract text from content blocks (e.g., [{"type":"text","text":"Hello"}])
+        return parsed
+          .filter((block: any) => block.type === 'text')
+          .map((block: any) => block.text)
+          .join('\n\n');
+      }
+    } catch {
+      // Not valid JSON, return as-is
+    }
+  }
+  return content;
+}
 
 // ── Status config ────────────────────────────────────────────────────────────
 
@@ -46,6 +67,7 @@ function ConversationThread({ patient, campaignId, lang, onClose }: Conversation
   const [localMessages, setLocalMessages] = useState<CampaignMessage[]>(patient.messages ?? [])
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false)
+  const { toast } = useToast()
   const queryClient = useQueryClient()
 
   const isHandoff =
@@ -83,8 +105,12 @@ function ConversationThread({ patient, campaignId, lang, onClose }: Conversation
       setDraft('')
       setSending(false)
       queryClient.invalidateQueries({ queryKey: ['campaign-patient', patient.id] })
+      toast(lang === 'FR' ? 'Message envoyé' : 'Message sent', 'success')
     },
-    onError: () => setSending(false),
+    onError: (err: any) => {
+      setSending(false)
+      toast(err?.response?.data?.message ?? (lang === 'FR' ? 'Erreur d\'envoi' : 'Send failed'), 'error')
+    },
   })
 
   const resolveMutation = useMutation({
@@ -201,7 +227,7 @@ function ConversationThread({ patient, campaignId, lang, onClose }: Conversation
                       ? 'bg-orange-50 dark:bg-orange-900/20 text-neutral-800 dark:text-neutral-200 rounded-bl-md border border-orange-100 dark:border-orange-900/40'
                       : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 rounded-bl-md'
                 }`}>
-                  <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                  <p className="text-sm whitespace-pre-wrap">{parseMessageContent(msg.content)}</p>
                   {msg.timestamp && (
                     <p className={`text-[10px] mt-1 ${
                       msg.role === 'user'
