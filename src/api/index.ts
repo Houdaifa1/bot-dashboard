@@ -104,9 +104,11 @@ export const updateAppointmentStatus = (id: string, status: string) =>
 export const deleteAppointment = (id: string) =>
   api.delete(`/api/admin/v1/appointments/${id}`).then(r => r.data)
 
-// ── Handoff (reactive bot) ────────────────────────────────────────────────────
+// ── Handoff (campaign AI handoff sessions) ────────────────────────────────────
 export const getHandoffSessions = () =>
   api.get('/api/admin/v1/handoff').then(r => r.data)
+export const sendHandoffMessage = (phone: string, message: string) =>
+  api.post('/api/admin/v1/handoff/send-message', { phone, message }).then(r => r.data)
 export const resolveHandoff = (phone: string) =>
   api.post('/api/admin/v1/handoff/resolve', { phone }).then(r => r.data)
 
@@ -134,15 +136,6 @@ export const deleteCampaign = (id: string) =>
 export const previewCampaign = (id: string) =>
   api.get(`/api/admin/v1/campaigns/${id}/preview`).then(r => r.data)
 
-// ── Campaign Takeover (AI conversation staff takeover) ────────────────────────
-export const getActiveHandovers = () =>
-  api.get('/api/admin/v1/campaigns/handovers').then(r => r.data)
-export const campaignTakeover = (phone: string) =>
-  api.post('/api/admin/v1/campaigns/takeover', { phone }).then(r => r.data)
-export const sendStaffMessage = (phone: string, message: string) =>
-  api.post('/api/admin/v1/campaigns/staff-message', { phone, message }).then(r => r.data)
-export const releaseBotControl = (phone: string) =>
-  api.post('/api/admin/v1/campaigns/release-bot', { phone }).then(r => r.data)
 
 // ── Complaints ────────────────────────────────────────────────────────────────
 export const getComplaints = (params?: any) =>
