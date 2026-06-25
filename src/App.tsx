@@ -16,6 +16,7 @@ import { AppointmentsPage} from './pages/Appointments'
 import { HandoffPage }     from './pages/Handoff'
 import { CampaignsPage }   from './pages/Campaigns'
 import { CampaignPatientsPage } from './pages/CampaignPatients'
+import { ComplaintsPage } from './pages/Complaints'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -74,6 +75,9 @@ function AppRoutes() {
       } />
       <Route path="/campaigns/:campaignId/patients" element={
         <ProtectedRoute><CampaignPatientsPage /></ProtectedRoute>
+      } />
+      <Route path="/complaints" element={
+        <ProtectedRoute><ComplaintsPage /></ProtectedRoute>
       } />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

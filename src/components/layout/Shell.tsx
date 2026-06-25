@@ -4,7 +4,7 @@ import { t } from '../../i18n'
 import {
   LayoutDashboard, Building2, MessageSquare, Stethoscope,
   UserRound, HelpCircle, CalendarCheck, PhoneForwarded,
-  Megaphone, LogOut, Globe, Menu, X, Sun, Moon
+  Megaphone, AlertTriangle, LogOut, Globe, Menu, X, Sun, Moon
 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -28,6 +28,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
     { to: '/appointments', icon: CalendarCheck,   label: t(lang, 'nav_appointments') },
     { to: '/handoff',      icon: PhoneForwarded,  label: t(lang, 'nav_handoff') },
     { to: '/campaigns',    icon: Megaphone,       label: t(lang, 'nav_campaigns') },
+    { to: '/complaints',   icon: AlertTriangle,   label: t(lang, 'nav_complaints') },
   ]
 
   const sidebar = (
