@@ -292,7 +292,7 @@ export function CampaignPatientsPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const initialStatus = (searchParams.get('status') as CampaignPatientStatus | null) ?? 'ALL'
-  const [statusFilter,     setStatusFilter]     = useState<CampaignPatientStatus | 'ALL'>(initialStatus)
+  const [statusFilter,     setStatusFilter]     = useState<CampaignPatientStatus | 'ALL' | 'HANDOFF'>(initialStatus)
   const [selectedPatient,  setSelectedPatient]  = useState<CampaignPatient | null>(null)
 
   const { data: campaign, isLoading, isError, refetch } = useQuery<Campaign & { patients: CampaignPatient[] }>({
@@ -319,7 +319,9 @@ export function CampaignPatientsPage() {
   const patients = campaign.patients ?? []
   const filtered = statusFilter === 'ALL'
     ? patients
-    : patients.filter(p => p.status === statusFilter)
+    : statusFilter === 'HANDOFF'
+      ? patients.filter(p => p.status === 'COMPLETED' && (p.outcome === 'HANDED_OFF' || p.sessionStatus === 'handed_off' || p.sessionStatus === 'admin_handling'))
+      : patients.filter(p => p.status === statusFilter)
 
   // Status counts for filter chips
   const counts: Record<string, number> = {}
@@ -327,9 +329,14 @@ export function CampaignPatientsPage() {
     counts[p.status] = (counts[p.status] ?? 0) + 1
   }
 
-  const statusFilters: (CampaignPatientStatus | 'ALL')[] = [
-    'ALL', 'PENDING', 'CONTACTED', 'REPLIED', 'COMPLETED', 'OPTED_OUT', 'NO_RESPONSE',
+  const statusFilters: (CampaignPatientStatus | 'ALL' | 'HANDOFF')[] = [
+    'ALL', 'PENDING', 'CONTACTED', 'REPLIED', 'COMPLETED', 'OPTED_OUT', 'NO_RESPONSE', 'HANDOFF',
   ]
+
+  const getStatusLabel = (s: string) => {
+    if (s === 'HANDOFF') return lang === 'FR' ? 'Prise en charge' : 'Needs agent'
+    return STATUS_LABELS[s as CampaignPatientStatus] || s
+  }
 
   return (
     <div className="max-w-6xl">
@@ -354,18 +361,20 @@ export function CampaignPatientsPage() {
           const isActive = statusFilter === s
           const count    = s === 'ALL' ? patients.length : (counts[s] ?? 0)
           return (
-            <button
-              key={s}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
-                isActive
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700'
-              }`}
-              onClick={() => setStatusFilter(s)}
-            >
-              {s === 'ALL' ? (lang === 'FR' ? 'Tous' : 'All') : STATUS_LABELS[s]}
-              {count > 0 && <span className="ml-1.5 opacity-70">({count})</span>}
-            </button>
+              <button
+                key={s}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                  isActive
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : s === 'HANDOFF'
+                      ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 hover:bg-red-200'
+                      : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700'
+                }`}
+                onClick={() => setStatusFilter(s as CampaignPatientStatus | 'ALL' | 'HANDOFF')}
+              >
+                {getStatusLabel(s)}
+                {count > 0 && <span className="ml-1.5 opacity-70">({count})</span>}
+              </button>
           )
         })}
       </div>
@@ -396,17 +405,18 @@ export function CampaignPatientsPage() {
                     <span className="font-medium text-neutral-800 dark:text-neutral-200 truncate">
                       {patient.patientName}
                     </span>
-                    <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${style.bg} ${style.text}`}>
-                      {STATUS_LABELS[patient.status]}
-                    </span>
-                    {patient.outcome && (
-                      <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-neutral-100 dark:bg-neutral-800 text-neutral-500">
-                        {OUTCOME_LABELS[patient.outcome] ?? patient.outcome}
+                    {isHandoff ? (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 animate-pulse">
+                        {lang === 'FR' ? '🚨 ATTENTE AGENT' : '🚨 NEEDS AGENT'}
+                      </span>
+                    ) : (
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${style.bg} ${style.text}`}>
+                        {STATUS_LABELS[patient.status]}
                       </span>
                     )}
-                    {isHandoff && (
-                      <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300">
-                        {lang === 'FR' ? 'Prise en charge' : 'Live agent'}
+                    {patient.outcome && !isHandoff && (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-neutral-100 dark:bg-neutral-800 text-neutral-500">
+                        {OUTCOME_LABELS[patient.outcome] ?? patient.outcome}
                       </span>
                     )}
                   </div>
