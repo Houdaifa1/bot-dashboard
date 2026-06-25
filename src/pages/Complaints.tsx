@@ -1,8 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  Plus, AlertTriangle, AlertCircle, Info, CheckCircle2, XCircle,
-  Loader2, MessageSquare, StickyNote, Filter,
+  AlertTriangle, AlertCircle, Loader2, MessageSquare, StickyNote,
 } from 'lucide-react'
 import { getComplaints, updateComplaintStatus, updateComplaintStaffNote } from '../api'
 import { useAuth } from '../store/auth'
@@ -77,7 +76,7 @@ export function ComplaintsPage() {
 
   const [statusFilter, setStatusFilter] = useState<ComplaintStatusFilter | 'ALL'>('ALL')
   const [severityFilter, setSeverityFilter] = useState<ComplaintSeverity | 'ALL'>('ALL')
-  const [typeFilter, setTypeFilter] = useState<ComplaintType | 'ALL'>('ALL')
+  const [typeFilter] = useState<ComplaintType | 'ALL'>('ALL')
   const [noteTarget, setNoteTarget] = useState<Complaint | null>(null)
 
   const { data: complaints, isLoading, isError, refetch } = useQuery<Complaint[]>({
