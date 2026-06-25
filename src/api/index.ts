@@ -136,6 +136,12 @@ export const deleteCampaign = (id: string) =>
 export const previewCampaign = (id: string) =>
   api.get(`/api/admin/v1/campaigns/${id}/preview`).then(r => r.data)
 
+// ── Campaign Patient Live Session ──────────────────────────────────────────────
+export const sendPatientMessage = (campaignId: string, patientId: string, message: string) =>
+  api.post(`/api/admin/v1/campaigns/${campaignId}/patients/${patientId}/send-message`, { message }).then(r => r.data)
+export const resolvePatientConversation = (campaignId: string, patientId: string) =>
+  api.post(`/api/admin/v1/campaigns/${campaignId}/patients/${patientId}/resolve`).then(r => r.data)
+
 
 // ── Complaints ────────────────────────────────────────────────────────────────
 export const getComplaints = (params?: any) =>

@@ -1,11 +1,11 @@
 import { useState, useRef, useEffect } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowLeft, Phone, Clock, Stethoscope, MessageSquare, XCircle,
-  Bot,
+  Bot, Send, CheckCircle, UserRound
 } from 'lucide-react'
-import { getCampaign } from '../api'
+import { getCampaign, sendPatientMessage, resolvePatientConversation } from '../api'
 import { useAuth } from '../store/auth'
 import { PageHeader, PageLoader, Empty } from '../components/ui'
 import type { Campaign, CampaignPatient, CampaignPatientStatus, CampaignMessage } from '../types'
@@ -32,27 +32,76 @@ const OUTCOME_LABELS: Record<string, string> = {
   HANDED_OFF: 'Handed off', URGENT: 'Urgent', OPTED_OUT: 'Opted out', NO_RESPONSE: 'No response',
 }
 
-// ── Conversation Thread Drawer (read-only watch mode) ────────────────────────
+// ── Conversation Thread Drawer (live agent mode) ──────────────────────────────
 
 interface ConversationThreadProps {
   patient:    CampaignPatient
+  campaignId: string
   lang:       string
   onClose:    () => void
 }
 
-function ConversationThread({ patient, lang, onClose }: ConversationThreadProps) {
+function ConversationThread({ patient, campaignId, lang, onClose }: ConversationThreadProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const [localMessages] = useState<CampaignMessage[]>(patient.messages ?? [])
+  const [localMessages, setLocalMessages] = useState<CampaignMessage[]>(patient.messages ?? [])
+  const [draft, setDraft] = useState('')
+  const [sending, setSending] = useState(false)
+  const queryClient = useQueryClient()
 
-  // Scroll to bottom whenever messages update
+  const isHandoff =
+    patient.status === 'COMPLETED' &&
+    (patient.outcome === 'HANDED_OFF' || patient.sessionStatus === 'handed_off' || patient.sessionStatus === 'admin_handling')
+
+  // Refresh conversation every 3s when drawer is open
+  const { data: refreshed } = useQuery<CampaignPatient>({
+    queryKey: ['campaign-patient', patient.id],
+    queryFn: async () => {
+      const res = await fetch(`/api/admin/v1/campaigns/${campaignId}/patients/${patient.id}/conversation`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token') }` },
+      })
+      if (!res.ok) throw new Error('Failed to load conversation')
+      return res.json()
+    },
+    enabled: !!patient.id,
+    refetchInterval: 3000,
+  })
+
+  useEffect(() => {
+    if (refreshed?.messages) {
+      setLocalMessages(refreshed.messages)
+    }
+  }, [refreshed])
+
+  // Scroll to bottom on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [localMessages])
 
-  const isConversationEnded =
-    patient.status === 'COMPLETED' ||
-    patient.status === 'OPTED_OUT'  ||
-    patient.status === 'NO_RESPONSE'
+  const sendMutation = useMutation({
+    mutationFn: (msg: string) => sendPatientMessage(campaignId, patient.id, msg),
+    onSuccess: () => {
+      setDraft('')
+      setSending(false)
+      queryClient.invalidateQueries({ queryKey: ['campaign-patient', patient.id] })
+    },
+    onError: () => setSending(false),
+  })
+
+  const resolveMutation = useMutation({
+    mutationFn: () => resolvePatientConversation(campaignId, patient.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['campaign', campaignId] })
+      queryClient.invalidateQueries({ queryKey: ['campaign-patient', patient.id] })
+      onClose()
+    },
+  })
+
+  const handleSend = () => {
+    const trimmed = draft.trim()
+    if (!trimmed || sending) return
+    setSending(true)
+    sendMutation.mutate(trimmed)
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -68,12 +117,24 @@ function ConversationThread({ patient, lang, onClose }: ConversationThreadProps)
         {/* ── Header ────────────────────────────────────────────────────── */}
         <div className="shrink-0 border-b border-neutral-200 dark:border-neutral-800 px-5 py-4 flex items-center justify-between">
           <div>
-            <h3 className="font-semibold text-neutral-800 dark:text-neutral-200">
+            <h3 className="font-semibold text-neutral-800 dark:text-neutral-200 flex items-center gap-2">
               {patient.patientName}
+              {isHandoff && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300">HANDOFF</span>}
             </h3>
             <p className="text-xs text-neutral-500">{patient.phone}</p>
           </div>
           <div className="flex items-center gap-2">
+            {isHandoff && (
+              <button
+                onClick={() => resolveMutation.mutate()}
+                disabled={resolveMutation.isPending}
+                className="btn-outline h-8 px-3 text-xs flex items-center gap-1.5"
+                title={lang === 'FR' ? 'Marquer comme résolu' : 'Mark as resolved'}
+              >
+                <CheckCircle size={14} />
+                {lang === 'FR' ? 'Résoudre' : 'Resolve'}
+              </button>
+            )}
             <button onClick={onClose} className="btn-ghost h-8 w-8 p-0">
               <XCircle size={18} />
             </button>
@@ -95,8 +156,24 @@ function ConversationThread({ patient, lang, onClose }: ConversationThreadProps)
           </div>
         </div>
 
+        {/* ── Handoff banner (agent mode) ────────────────────────────────── */}
+        {isHandoff && (
+          <div className="shrink-0 px-5 py-2.5 bg-orange-50 dark:bg-orange-900/20 border-b border-orange-100 dark:border-orange-900/40 flex items-center gap-2">
+            <UserRound size={14} className="text-orange-600 dark:text-orange-400" />
+            <p className="text-xs text-orange-700 dark:text-orange-300">
+              {lang === 'FR'
+                ? 'Conversation en mode agent. Vous pouvez répondre directement au patient.'
+                : 'Conversation in agent mode. You can reply directly to the patient.'}
+            </p>
+          </div>
+        )}
+
         {/* ── Bot status bar (read-only) ────────────────────────────────── */}
-        {!isConversationEnded && (
+        {!isHandoff && !(
+          patient.status === 'COMPLETED' ||
+          patient.status === 'OPTED_OUT' ||
+          patient.status === 'NO_RESPONSE'
+        ) && (
           <div className="shrink-0 px-5 py-3 border-b border-neutral-200 dark:border-neutral-800 flex items-center gap-3">
             <div className="flex items-center gap-1.5 text-xs text-neutral-500">
               <Bot size={13} className="text-blue-500" />
@@ -105,7 +182,7 @@ function ConversationThread({ patient, lang, onClose }: ConversationThreadProps)
           </div>
         )}
 
-        {/* ── Message thread (read-only) ────────────────────────────────── */}
+        {/* ── Message thread ─────────────────────────────────────────────── */}
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
           {localMessages.length === 0 ? (
             <p className="text-sm text-neutral-400 text-center py-8">
@@ -120,12 +197,16 @@ function ConversationThread({ patient, lang, onClose }: ConversationThreadProps)
                 <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 ${
                   msg.role === 'user'
                     ? 'bg-blue-600 text-white rounded-br-md'
-                    : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 rounded-bl-md'
+                    : msg.role === 'assistant' && isHandoff
+                      ? 'bg-orange-50 dark:bg-orange-900/20 text-neutral-800 dark:text-neutral-200 rounded-bl-md border border-orange-100 dark:border-orange-900/40'
+                      : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 rounded-bl-md'
                 }`}>
                   <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
                   {msg.timestamp && (
                     <p className={`text-[10px] mt-1 ${
-                      msg.role === 'user' ? 'text-blue-200' : 'text-neutral-400'
+                      msg.role === 'user'
+                        ? 'text-blue-200'
+                        : 'text-neutral-400'
                     }`}>
                       {new Date(msg.timestamp).toLocaleTimeString(
                         lang === 'FR' ? 'fr-MA' : 'en-GB',
@@ -139,6 +220,39 @@ function ConversationThread({ patient, lang, onClose }: ConversationThreadProps)
           )}
           <div ref={messagesEndRef} />
         </div>
+
+        {/* ── Agent input (only in handoff mode) ─────────────────────────── */}
+        {isHandoff && (
+          <div className="shrink-0 border-t border-neutral-200 dark:border-neutral-800 px-4 py-3">
+            <div className="flex items-center gap-2">
+              <textarea
+                className="flex-1 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                rows={2}
+                placeholder={lang === 'FR' ? 'Écrire un message au patient...' : 'Type a message to the patient...'}
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    handleSend()
+                  }
+                }}
+              />
+              <button
+                onClick={handleSend}
+                disabled={sending || !draft.trim()}
+                className="btn-primary h-10 w-10 p-0 flex items-center justify-center disabled:opacity-40"
+              >
+                <Send size={16} />
+              </button>
+            </div>
+            <p className="text-[10px] text-neutral-400 mt-1.5">
+              {lang === 'FR'
+                ? 'Le message sera envoyé via WhatsApp et enregistré dans la conversation.'
+                : 'Message will be sent via WhatsApp and saved to the conversation.'}
+            </p>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -237,6 +351,10 @@ export function CampaignPatientsPage() {
         <div className="space-y-2">
           {filtered.map(patient => {
             const style         = STATUS_STYLES[patient.status]
+            const isHandoff =
+              patient.status === 'COMPLETED' &&
+              (patient.outcome === 'HANDED_OFF' || patient.sessionStatus === 'handed_off' || patient.sessionStatus === 'admin_handling')
+
             return (
               <div
                 key={patient.id}
@@ -258,6 +376,11 @@ export function CampaignPatientsPage() {
                     {patient.outcome && (
                       <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-neutral-100 dark:bg-neutral-800 text-neutral-500">
                         {OUTCOME_LABELS[patient.outcome] ?? patient.outcome}
+                      </span>
+                    )}
+                    {isHandoff && (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300">
+                        {lang === 'FR' ? 'Prise en charge' : 'Live agent'}
                       </span>
                     )}
                   </div>
@@ -293,10 +416,11 @@ export function CampaignPatientsPage() {
         </div>
       )}
 
-      {/* Conversation thread drawer (read-only) */}
+      {/* Conversation thread drawer (live when handoff) */}
       {selectedPatient && (
         <ConversationThread
           patient={selectedPatient}
+          campaignId={campaignId!}
           lang={lang}
           onClose={() => setSelectedPatient(null)}
         />
