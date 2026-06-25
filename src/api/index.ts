@@ -63,18 +63,12 @@ export const createDoctor = (data: any) =>
   api.post('/api/admin/v1/doctors', data).then(r => r.data)
 export const updateDoctor = (id: string, data: any) =>
   api.patch(`/api/admin/v1/doctors/${id}`, data).then(r => r.data)
-
-// Activate (toggle isActive → true, re-links orphaned appointments)
 export const activateDoctor = (id: string) =>
   api.patch(`/api/admin/v1/doctors/${id}/activate`).then(r => r.data)
-
-// Deactivate (soft — doctor record stays, appointments keep doctorId)
 export const deactivateDoctor = (id: string) =>
   api.delete(`/api/admin/v1/doctors/${id}/deactivate`).then(r => r.data)
 export const confirmDeactivateDoctor = (id: string, data: { notify: boolean; customMessage?: string }) =>
   api.delete(`/api/admin/v1/doctors/${id}/deactivate/confirm`, { data }).then(r => r.data)
-
-// Delete (hard — nulls doctorId on all appointments, preserves doctorName)
 export const deleteDoctor = (id: string) =>
   api.delete(`/api/admin/v1/doctors/${id}`).then(r => r.data)
 export const confirmDeleteDoctor = (id: string, data: { notify: boolean; customMessage?: string }) =>
@@ -110,13 +104,13 @@ export const updateAppointmentStatus = (id: string, status: string) =>
 export const deleteAppointment = (id: string) =>
   api.delete(`/api/admin/v1/appointments/${id}`).then(r => r.data)
 
-// ── Handoff ───────────────────────────────────────────────────────────────────
+// ── Handoff (reactive bot) ────────────────────────────────────────────────────
 export const getHandoffSessions = () =>
   api.get('/api/admin/v1/handoff').then(r => r.data)
 export const resolveHandoff = (phone: string) =>
   api.post('/api/admin/v1/handoff/resolve', { phone }).then(r => r.data)
 
-// ── Campaigns ────────────────────────────────────────────────────────────────
+// ── Campaigns ─────────────────────────────────────────────────────────────────
 export const getCampaigns = () =>
   api.get('/api/admin/v1/campaigns').then(r => r.data)
 export const getCampaign = (id: string) =>
@@ -140,7 +134,17 @@ export const deleteCampaign = (id: string) =>
 export const previewCampaign = (id: string) =>
   api.get(`/api/admin/v1/campaigns/${id}/preview`).then(r => r.data)
 
-// ── Complaints ───────────────────────────────────────────────────────────────
+// ── Campaign Takeover (AI conversation staff takeover) ────────────────────────
+export const getActiveHandovers = () =>
+  api.get('/api/admin/v1/campaigns/handovers').then(r => r.data)
+export const campaignTakeover = (phone: string) =>
+  api.post('/api/admin/v1/campaigns/takeover', { phone }).then(r => r.data)
+export const sendStaffMessage = (phone: string, message: string) =>
+  api.post('/api/admin/v1/campaigns/staff-message', { phone, message }).then(r => r.data)
+export const releaseBotControl = (phone: string) =>
+  api.post('/api/admin/v1/campaigns/release-bot', { phone }).then(r => r.data)
+
+// ── Complaints ────────────────────────────────────────────────────────────────
 export const getComplaints = (params?: any) =>
   api.get('/api/admin/v1/complaints', { params }).then(r => r.data)
 export const getComplaint = (id: string) =>
@@ -150,7 +154,7 @@ export const updateComplaintStatus = (id: string, status: string) =>
 export const updateComplaintStaffNote = (id: string, staffNote: string) =>
   api.patch(`/api/admin/v1/complaints/${id}/staff-note`, { staffNote }).then(r => r.data)
 
-// ── Booking Requests ─────────────────────────────────────────────────────────
+// ── Booking Requests ──────────────────────────────────────────────────────────
 export const getBookingRequests = (params?: any) =>
   api.get('/api/admin/v1/booking-requests', { params }).then(r => r.data)
 export const getBookingRequest = (id: string) =>

@@ -7,7 +7,6 @@ export interface Clinic {
   notificationPhone?: string;
 }
 
-
 export interface BotMessage {
   id: string; clinicId: string; key: string; body: string;
   language: string; updatedAt: string;
@@ -46,7 +45,6 @@ export interface Appointment {
 
 export type AppointmentStatus = 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'COMPLETED' | 'NO_SHOW'
 
-
 export interface Stats {
   totalAppointments: number;
   todayAppointments: number;
@@ -81,7 +79,20 @@ export interface Campaign {
   completedAt?: string | null;
 }
 
-export type CampaignPatientStatus = 'PENDING' | 'PARKED' | 'CONTACTED' | 'REPLIED' | 'COMPLETED' | 'OPTED_OUT' | 'NO_RESPONSE'
+export type CampaignPatientStatus =
+  | 'PENDING'
+  | 'PARKED'
+  | 'CONTACTED'
+  | 'REPLIED'
+  | 'COMPLETED'
+  | 'OPTED_OUT'
+  | 'NO_RESPONSE'
+
+export interface CampaignMessage {
+  role:      'assistant' | 'user';
+  content:   string;
+  timestamp: number;
+}
 
 export interface CampaignPatient {
   id: string; campaignId: string; clinicId: string;
@@ -92,7 +103,23 @@ export interface CampaignPatient {
   outcome?: string | null;
   createdAt: string; updatedAt: string;
   contactedAt?: string | null; repliedAt?: string | null; completedAt?: string | null;
-  messages: any[];
+  messages: CampaignMessage[];
+  // Session status — populated when patient has an active Redis session
+  sessionStatus?: 'awaiting_reply' | 'active' | 'admin_handling' | 'completed' | 'handed_off' | null;
+}
+
+// ── Staff Takeover (campaign conversation handover to human staff) ────────────
+
+export interface StaffHandover {
+  campaignPatientId: string;
+  campaignId:        string;
+  phone:             string;
+  patientName:       string;
+  clinicId:          string;
+  takenOverAt:       number;
+  lastActivityAt:    number;
+  turnCount:         number;
+  language:          string | null;
 }
 
 // ── Complaints ───────────────────────────────────────────────────────────────
