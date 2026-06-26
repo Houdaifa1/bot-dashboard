@@ -1,30 +1,19 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  Loader2, Phone, CheckCircle2, Send, MessageSquare, Bot, XCircle,
+  Phone, Send, Loader2, CheckCircle2, X, MessageSquare,
+  Clock, AlertCircle, RefreshCw,
 } from 'lucide-react'
 import { getHandoffSessions, sendHandoffMessage, resolveHandoff } from '../api'
-import { useAuth } from '../store/auth'
 import { useToast } from '../store/toast'
-import { PageHeader, PageLoader, Empty } from '../components/ui'
+import { PageHeader, PageLoader } from '../components/ui'
 
-// Helper to parse message content (handles JSON stored by backend)
-function parseMessageContent(content: string): string {
-  const trimmed = content.trim();
-  if ((trimmed.startsWith('[') || trimmed.startsWith('{')) && (trimmed.endsWith(']') || trimmed.endsWith('}'))) {
-    try {
-      const parsed = JSON.parse(trimmed);
-      if (Array.isArray(parsed)) {
-        return parsed
-          .filter((block: any) => block.type === 'text')
-          .map((block: any) => block.text)
-          .join('\n\n');
-      }
-    } catch {
-      // Not valid JSON, return as-is
-    }
-  }
-  return content;
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface HandoffMessage {
+  role:      string
+  content:   string
+  timestamp: number
 }
 
 interface HandoffSession {
@@ -33,63 +22,111 @@ interface HandoffSession {
   patientName:       string
   phone:             string
   language:          string | null
-  messages:          { role: string; content: string; timestamp: number }[]
+  messages:          HandoffMessage[]
   turnCount:         number
   handoffReason:     string
   handedOffAt:       number
   lastActivityAt:    number
 }
 
-function formatTime(ts: number) {
-  return new Date(ts).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function parseContent(content: string): string | null {
+  if (!content?.trim()) return null
+  const t = content.trim()
+  if ((t.startsWith('[') || t.startsWith('{')) && (t.endsWith(']') || t.endsWith('}'))) {
+    try {
+      const parsed = JSON.parse(t)
+      if (Array.isArray(parsed)) {
+        const text = parsed
+          .filter((b: any) => b.type === 'text' && b.text?.trim())
+          .map((b: any) => b.text.trim())
+          .join('\n\n')
+        return text || null
+      }
+      if (parsed?.type === 'tool_result' || parsed?.type === 'tool_use') return null
+    } catch {}
+  }
+  return content
 }
 
-function ConversationDrawer({ session, lang, onClose }: {
-  session: HandoffSession; lang: string; onClose: () => void
+function formatTime(ts: number): string {
+  return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
+
+function timeAgo(ts: number): string {
+  const diff = Date.now() - ts
+  const mins = Math.floor(diff / 60_000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  return `${Math.floor(hrs / 24)}d ago`
+}
+
+// ─── Conversation Panel ───────────────────────────────────────────────────────
+
+function ConversationPanel({
+  session,
+  onClose,
+}: {
+  session: HandoffSession
+  onClose: () => void
 }) {
-  const { toast } = useToast()
-  const queryClient = useQueryClient()
+  const { toast }      = useToast()
+  const qc             = useQueryClient()
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const textareaRef    = useRef<HTMLTextAreaElement>(null)
   const [draft, setDraft] = useState('')
 
-  // Poll fresh session data every 2s for real-time updates
   const { data: sessions } = useQuery<HandoffSession[]>({
     queryKey: ['handoff-sessions'],
-    queryFn: () => getHandoffSessions(),
-    refetchInterval: 2_000,
+    queryFn:  getHandoffSessions,
+    refetchInterval: 2000,
   })
 
-  const fresh = sessions?.find(s => s.phone === session.phone)
-  const messages = fresh?.messages ?? session.messages
+  const live     = sessions?.find(s => s.phone === session.phone) ?? session
+  const messages = live.messages.filter(m => !!parseContent(m.content))
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+  }, [messages.length])
+
+  useEffect(() => {
+    textareaRef.current?.focus()
+  }, [])
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [onClose])
 
   const sendMut = useMutation({
-    mutationFn: () => sendHandoffMessage(session.phone, draft.trim()),
+    mutationFn: (msg: string) => sendHandoffMessage(session.phone, msg),
     onSuccess: () => {
       setDraft('')
-      queryClient.invalidateQueries({ queryKey: ['handoff-sessions'] })
-      toast(lang === 'FR' ? 'Message envoyé' : 'Message sent', 'success')
+      qc.invalidateQueries({ queryKey: ['handoff-sessions'] })
+      toast('Message sent', 'success')
     },
-    onError: (err: any) => toast(err?.response?.data?.message ?? 'Error', 'error'),
+    onError: (e: any) => toast(e?.response?.data?.message ?? 'Send failed', 'error'),
   })
 
   const resolveMut = useMutation({
     mutationFn: () => resolveHandoff(session.phone),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['handoff-sessions'] })
-      toast(lang === 'FR' ? 'Session résolue' : 'Session resolved', 'success')
+      qc.invalidateQueries({ queryKey: ['handoff-sessions'] })
+      toast('Session resolved', 'success')
       onClose()
     },
-    onError: (err: any) => toast(err?.response?.data?.message ?? 'Error', 'error'),
+    onError: (e: any) => toast(e?.response?.data?.message ?? 'Error', 'error'),
   })
 
-  const handleSend = () => {
-    if (!draft.trim() || sendMut.isPending) return
-    sendMut.mutate()
-  }
+  const handleSend = useCallback(() => {
+    const msg = draft.trim()
+    if (!msg || sendMut.isPending) return
+    sendMut.mutate(msg)
+  }, [draft, sendMut])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -100,127 +137,184 @@ function ConversationDrawer({ session, lang, onClose }: {
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-lg bg-white dark:bg-neutral-900 shadow-2xl flex flex-col">
-        {/* Header */}
-        <div className="shrink-0 border-b px-5 py-4 flex items-center justify-between">
-          <div>
-            <h3 className="font-semibold text-neutral-800 dark:text-neutral-200">{session.patientName}</h3>
-            <p className="text-xs text-neutral-500">{session.phone}</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] px-2 py-1 rounded-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 font-medium">
-              Handoff
-            </span>
-            <button onClick={onClose} className="btn-ghost h-8 w-8 p-0">
-              <XCircle size={18} />
-            </button>
-          </div>
-        </div>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
-        {/* Info strip */}
-        <div className="shrink-0 px-5 py-3 bg-neutral-50 dark:bg-neutral-800/50 border-b text-xs text-neutral-500 space-y-1">
-          <p><span className="font-medium">Reason:</span> {session.handoffReason}</p>
-          <p><span className="font-medium">Turns:</span> {session.turnCount}</p>
-        </div>
+      <div className="relative w-full max-w-xl bg-white dark:bg-gray-900 flex flex-col shadow-2xl transition-colors duration-200">
 
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
-          {messages.map((msg: any, i: number) => (
-            <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 ${
-                msg.role === 'user'
-                  ? 'bg-blue-600 text-white rounded-br-md'
-                  : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 rounded-bl-md'
-              }`}>
-                <p className="text-sm whitespace-pre-wrap">{parseMessageContent(msg.content)}</p>
-                {msg.timestamp && (
-                  <p className={`text-[10px] mt-1 ${msg.role === 'user' ? 'text-blue-200' : 'text-neutral-400'}`}>
-                    {formatTime(msg.timestamp)}
-                  </p>
-                )}
+        {/* ── Header ─────────────────────────────────────────────────────── */}
+        <div className="shrink-0 border-b border-gray-100 dark:border-gray-800 px-5 py-4 bg-white dark:bg-gray-900">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-gray-900 dark:text-gray-100">{session.patientName}</span>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-red-100 dark:bg-red-950/50 text-red-700 dark:text-red-400">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-pulse" />
+                  Handoff
+                </span>
               </div>
+              <p className="text-sm text-gray-400 dark:text-gray-500 mt-0.5 font-mono">{session.phone}</p>
             </div>
-          ))}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => resolveMut.mutate()}
+                disabled={resolveMut.isPending}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/50 text-xs font-medium transition-colors"
+              >
+                {resolveMut.isPending ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
+                Resolve
+              </button>
+              <button onClick={onClose} className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg text-gray-400 transition-colors">
+                <X size={16} />
+              </button>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4 mt-3 text-xs text-gray-400 dark:text-gray-500">
+            <span className="flex items-center gap-1"><Clock size={9} />{timeAgo(live.lastActivityAt)}</span>
+            <span className="flex items-center gap-1">
+              <MessageSquare size={9} />
+              {messages.length} messages
+            </span>
+            <span>{live.turnCount} turns</span>
+          </div>
+        </div>
+
+        {/* ── Messages ───────────────────────────────────────────────────── */}
+        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 bg-gray-50 dark:bg-gray-950">
+          {messages.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-gray-400 dark:text-gray-600">
+              <MessageSquare size={28} className="mb-2 opacity-30" />
+              <p className="text-sm">No messages</p>
+            </div>
+          ) : (
+            messages.map((msg, i) => {
+              const content   = parseContent(msg.content)
+              if (!content) return null
+              const isPatient = msg.role === 'user'
+              const isStaff   = !isPatient
+
+              return (
+                <div key={i} className={`flex ${isPatient ? 'justify-end' : 'justify-start'}`}>
+                  <div 
+                    className={`max-w-[78%] rounded-2xl px-4 py-2.5 text-left ${
+                      isPatient
+                        ? 'bg-blue-600 text-white rounded-br-sm'
+                        : isStaff
+                          ? 'bg-orange-50 dark:bg-orange-950/20 text-gray-900 dark:text-gray-100 rounded-bl-sm border border-orange-200 dark:border-orange-900/40'
+                          : 'bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-bl-sm border border-gray-100 dark:border-gray-800 shadow-sm'
+                    }`}
+                  >
+                    {isStaff && (
+                      <p className="text-[10px] font-semibold text-orange-500 dark:text-orange-400 mb-1 uppercase tracking-wide">
+                        Staff
+                      </p>
+                    )}
+                    <p className="text-sm whitespace-pre-wrap leading-relaxed">{content}</p>
+                    {msg.timestamp && (
+                      <p className={`text-[10px] mt-1.5 ${isPatient ? 'text-blue-200' : 'text-gray-400 dark:text-gray-500'}`}>
+                        {formatTime(msg.timestamp)}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )
+            })
+          )}
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input */}
-        <div className="shrink-0 border-t px-4 py-3 flex items-end gap-3">
-          <textarea
-            rows={2}
-            className="flex-1 resize-none rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 text-sm text-neutral-800 dark:text-neutral-200 placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-            placeholder={lang === 'FR' ? 'Votre message...' : 'Your message...'}
-            value={draft}
-            onChange={e => setDraft(e.target.value)}
-            onKeyDown={handleKeyDown}
-            disabled={sendMut.isPending}
-          />
-          <button
-            className="shrink-0 w-10 h-10 rounded-xl bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center disabled:opacity-50"
-            onClick={handleSend}
-            disabled={!draft.trim() || sendMut.isPending}
-          >
-            {sendMut.isPending ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-          </button>
-        </div>
-
-        {/* Resolve button */}
-        <div className="shrink-0 px-4 pb-3">
-          <button
-            className="w-full btn-outline text-xs py-2 flex items-center justify-center gap-2 border-green-300 text-green-600 hover:bg-green-50 dark:border-green-700 dark:text-green-400"
-            onClick={() => resolveMut.mutate()}
-            disabled={resolveMut.isPending}
-          >
-            {resolveMut.isPending
-              ? <Loader2 size={12} className="animate-spin" />
-              : <CheckCircle2 size={12} />
-            }
-            {lang === 'FR' ? 'Marquer comme résolu' : 'Mark as resolved'}
-          </button>
+        {/* ── Input ──────────────────────────────────────────────────────── */}
+        <div className="shrink-0 border-t border-gray-100 dark:border-gray-800 px-4 py-3 bg-white dark:bg-gray-900">
+          <div className="flex items-end gap-2">
+            <textarea
+              ref={textareaRef}
+              rows={2}
+              className="flex-1 resize-none rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950 px-3 py-2.5 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-300 dark:focus:border-blue-700 transition-colors"
+              placeholder="Type a message to the patient..."
+              value={draft}
+              onChange={e => setDraft(e.target.value)}
+              onKeyDown={handleKeyDown}
+              disabled={sendMut.isPending}
+            />
+            <button
+              onClick={handleSend}
+              disabled={sendMut.isPending || !draft.trim()}
+              className="shrink-0 w-10 h-10 rounded-xl bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center disabled:opacity-40 transition-colors"
+            >
+              {sendMut.isPending ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
+            </button>
+          </div>
+          <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1.5 px-1">
+            Enter to send · Shift+Enter for new line
+          </p>
         </div>
       </div>
     </div>
   )
 }
 
-export function HandoffPage() {
-  const { lang } = useAuth()
-  const [selectedSession, setSelectedSession] = useState<HandoffSession | null>(null)
-  const [expandedSession, setExpandedSession] = useState<string | null>(null)
-  const [replyTexts, setReplyTexts] = useState<Record<string, string>>({})
-  const { toast } = useToast()
-  const queryClient = useQueryClient()
+// ─── Session Card ─────────────────────────────────────────────────────────────
 
-  const sendMutation = useMutation({
-    mutationFn: ({ phone, message }: { phone: string; message: string }) =>
-      sendHandoffMessage(phone, message),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['handoff-sessions'] })
-      toast(lang === 'FR' ? 'Message envoyé' : 'Message sent', 'success')
-      setReplyTexts(prev => {
-        const next = { ...prev }
-        delete next[expandedSession ?? '']
-        return next
-      })
-    },
-    onError: (err: any) => toast(err?.response?.data?.message ?? 'Send failed', 'error'),
-  })
+function SessionCard({
+  session,
+  onClick,
+}: {
+  session: HandoffSession
+  onClick: () => void
+}) {
+  return (
+    <div
+      onClick={onClick}
+      className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 px-4 py-4 flex items-center gap-4 cursor-pointer hover:border-red-200 dark:hover:border-red-900 hover:shadow-sm transition-all group"
+    >
+      <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-950/40 flex items-center justify-center shrink-0">
+        <Phone size={16} className="text-red-500 dark:text-red-400" />
+      </div>
+
+      <div className="flex-1 min-w-0 text-start">
+        <div className="flex items-center gap-2">
+          <span className="font-medium text-gray-900 dark:text-gray-100 text-sm">{session.patientName}</span>
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-red-100 dark:bg-red-950/50 text-red-600 dark:text-red-400">
+            <span className="w-1 h-1 rounded-full bg-red-400 animate-pulse" />
+            needs agent
+          </span>
+        </div>
+        <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 font-mono">{session.phone}</p>
+      </div>
+
+      <div className="shrink-0 text-end">
+        <p className="text-xs text-gray-400 dark:text-gray-500">{timeAgo(session.lastActivityAt)}</p>
+        <p className="text-xs text-gray-300 dark:text-gray-600 mt-0.5">
+          {session.turnCount} turns
+        </p>
+      </div>
+    </div>
+  )
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
+
+export function HandoffPage() {
+  const [selected, setSelected] = useState<HandoffSession | null>(null)
 
   const { data: sessions, isLoading, isError, refetch } = useQuery<HandoffSession[]>({
     queryKey: ['handoff-sessions'],
-    queryFn: () => getHandoffSessions(),
-    refetchInterval: 2_000,
+    queryFn:  getHandoffSessions,
+    refetchInterval: 3000,
   })
 
   if (isLoading) return <PageLoader />
 
   if (isError) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 gap-3">
-        <p className="text-sm text-neutral-500">{lang === 'FR' ? 'Erreur de chargement' : 'Error loading data'}</p>
-        <button className="btn-outline" onClick={() => refetch()}>
-          {lang === 'FR' ? 'Réessayer' : 'Try again'}
+      <div className="flex flex-col items-center justify-center h-64 gap-3 text-gray-500">
+        <AlertCircle size={20} className="text-gray-300 dark:text-gray-700" />
+        <p className="text-sm">Failed to load sessions</p>
+        <button
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm border border-gray-200 dark:border-gray-800 rounded-lg bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+          onClick={() => refetch()}
+        >
+          <RefreshCw size={13} /> Retry
         </button>
       </div>
     )
@@ -229,148 +323,48 @@ export function HandoffPage() {
   const items = sessions ?? []
 
   return (
-    <div className="max-w-5xl">
-      <PageHeader
-        title={lang === 'FR' ? 'Sessions en attente' : 'Pending Handoffs'}
-        subtitle={lang === 'FR' ? "Patients en attente d'une réponse humaine" : 'Patients waiting for a human response'}
-      />
-
-      {/* Info card */}
-      <div className="card p-5 mb-6 flex items-start gap-4 bg-red-50/50 dark:bg-red-950/20 border-red-100 dark:border-red-900/50">
-        <div className="w-9 h-9 rounded-lg bg-red-100 dark:bg-red-900/40 flex items-center justify-center shrink-0">
-          <Phone size={16} className="text-red-600 dark:text-red-400" />
-        </div>
-        <div>
-          <p className="text-sm text-red-700 dark:text-red-300 font-medium">
-            {lang === 'FR' ? 'Répondre aux patients' : 'Respond to patients'}
-          </p>
-          <p className="text-xs text-red-600/70 dark:text-red-400/70 mt-1">
-            {lang === 'FR'
-              ? 'Ces patients ont demandé à parler à un humain. Cliquez sur une session pour voir la conversation et répondre.'
-              : 'These patients asked to speak to a human. Click a session to view the conversation and reply.'
-            }
-          </p>
-        </div>
+    <div className="max-w-3xl mx-auto px-4 pb-10">
+      <div className="mb-6">
+        <PageHeader
+          title="Pending Handoffs"
+          subtitle="Patients waiting for a human response"
+        />
       </div>
 
-      {items.length === 0 ? (
-        <Empty message={lang === 'FR' ? 'Aucune session en attente' : 'No pending handoffs'} />
-      ) : (
-        <div className="space-y-3">
-          {items.map(session => {
-            const isExpanded = expandedSession === session.phone
-            return (
-              <div
-                key={session.phone}
-                className={`card transition-all ${isExpanded ? 'p-0 overflow-hidden' : 'p-5'}`}
-              >
-                {!isExpanded ? (
-                  <div
-                    className="flex items-center justify-between gap-4 cursor-pointer hover:shadow-md"
-                    onClick={() => setExpandedSession(session.phone)}
-                  >
-                    <div className="flex items-center gap-4 min-w-0">
-                      <div className="w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center shrink-0">
-                        <MessageSquare size={18} className="text-red-600 dark:text-red-400" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="font-medium text-neutral-800 dark:text-neutral-200 truncate">
-                          {session.patientName}
-                        </p>
-                        <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-0.5">
-                          {session.phone}
-                        </p>
-                        <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-0.5 line-clamp-1">
-                          {session.handoffReason}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 shrink-0">
-                      <span className="text-xs text-neutral-400">{session.turnCount} turns</span>
-                      <div className="flex items-center gap-1 text-xs text-blue-500">
-                        <Bot size={12} />
-                        <span>AI</span>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="border-t border-neutral-200 dark:border-neutral-700">
-                    {/* Inline conversation */}
-                    <div className="p-4 max-h-[420px] overflow-y-auto space-y-3 bg-neutral-50 dark:bg-neutral-800/30">
-                      {session.messages.map((msg, i) => (
-                        <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                          <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 ${
-                            msg.role === 'user'
-                              ? 'bg-blue-600 text-white rounded-br-md'
-                              : 'bg-white dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 rounded-bl-md border border-neutral-200 dark:border-neutral-700'
-                          }`}>
-                            <p className="text-sm whitespace-pre-wrap">{parseMessageContent(msg.content)}</p>
-                            {msg.timestamp && (
-                              <p className={`text-[10px] mt-1 ${msg.role === 'user' ? 'text-blue-200' : 'text-neutral-400'}`}>
-                                {formatTime(msg.timestamp)}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Inline reply */}
-                    <div className="p-3 border-t border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900">
-                      <div className="flex items-end gap-2">
-                        <textarea
-                          rows={2}
-                          className="flex-1 resize-none rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder={lang === 'FR' ? 'Répondre à ce patient...' : 'Reply to this patient...'}
-                          value={replyTexts[session.phone] ?? ''}
-                          onChange={e => setReplyTexts(prev => ({ ...prev, [session.phone]: e.target.value }))}
-                        />
-                        <button
-                          className="shrink-0 w-10 h-10 rounded-xl bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center disabled:opacity-50"
-                          disabled={sendMutation.isPending || !(replyTexts[session.phone]?.trim())}
-                          onClick={() => {
-                            const text = replyTexts[session.phone]?.trim()
-                            if (!text) return
-                            sendMutation.mutate({ phone: session.phone, message: text })
-                          }}
-                        >
-                          {sendMutation.isPending
-                            ? <Loader2 size={16} className="animate-spin" />
-                            : <Send size={16} />}
-                        </button>
-                      </div>
-                      <div className="flex items-center justify-between mt-2">
-                        <button
-                          className="text-[11px] text-neutral-400 hover:text-neutral-600"
-                          onClick={() => setExpandedSession(null)}
-                        >
-                          {lang === 'FR' ? 'Fermer' : 'Close'}
-                        </button>
-                        <button
-                          className="text-[11px] text-red-500 hover:text-red-700 font-medium"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setExpandedSession(null)
-                            setSelectedSession(session)
-                          }}
-                        >
-                          {lang === 'FR' ? 'Ouvrir dans un volet' : 'Open in drawer'}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )
-          })}
+      {items.length > 0 && (
+        <div className="mb-6 flex items-start gap-3 px-4 py-3 bg-red-50 dark:bg-red-950/20 border border-red-100 dark:border-red-900/40 rounded-xl">
+          <div className="w-8 h-8 rounded-lg bg-red-100 dark:bg-red-950/50 flex items-center justify-center shrink-0 mt-0.5">
+            <Phone size={14} className="text-red-600 dark:text-red-400" />
+          </div>
+          <div className="text-left">
+            <p className="text-sm font-medium text-red-700 dark:text-red-400">
+              {items.length} patient{items.length > 1 ? 's' : ''} waiting
+            </p>
+            <p className="text-xs text-red-600/70 dark:text-red-400/60 mt-0.5">
+              Click a patient to open the conversation and reply directly.
+            </p>
+          </div>
         </div>
       )}
 
-      {selectedSession && (
-        <ConversationDrawer
-          session={selectedSession}
-          lang={lang}
-          onClose={() => setSelectedSession(null)}
+      {items.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 text-gray-400 dark:text-gray-600">
+          <CheckCircle2 size={32} className="mb-3 opacity-30" />
+          <p className="text-sm font-medium text-gray-500">All clear</p>
+          <p className="text-xs mt-1">No pending handoffs right now</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {items.map(s => (
+            <SessionCard key={s.phone} session={s} onClick={() => setSelected(s)} />
+          ))}
+        </div>
+      )}
+
+      {selected && (
+        <ConversationPanel
+          session={selected}
+          onClose={() => setSelected(null)}
         />
       )}
     </div>

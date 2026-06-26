@@ -2,361 +2,443 @@ import { useState, useRef, useEffect } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  ArrowLeft, Phone, Clock, Stethoscope, MessageSquare, XCircle,
-  Send, CheckCircle, UserRound, RefreshCw
+  ArrowLeft, Phone, Clock, Stethoscope, MessageSquare,
+  X, UserRound, Loader2, AlertCircle,
+  RefreshCw, ChevronRight,
 } from 'lucide-react'
-import { getCampaign, sendPatientMessage, resolvePatientConversation, takeOverPatientConversation } from '../api'
-import { useAuth } from '../store/auth'
+import {
+  getCampaign,
+  takeOverPatientConversation,
+} from '../api'
 import { useToast } from '../store/toast'
 import { PageHeader, PageLoader, Empty } from '../components/ui'
-import type { Campaign, CampaignPatient, CampaignPatientStatus, CampaignMessage } from '../types'
+import type { Campaign, CampaignPatient, CampaignMessage } from '../types'
 
-function parseMessageContent(content: string): string {
-  const trimmed = content.trim();
-  if ((trimmed.startsWith('[') || trimmed.startsWith('{')) && (trimmed.endsWith(']') || trimmed.endsWith('}'))) {
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function parseContent(content: string): string | null {
+  if (!content?.trim()) return null
+  const t = content.trim()
+  if ((t.startsWith('[') || t.startsWith('{')) && (t.endsWith(']') || t.endsWith('}'))) {
     try {
-      const parsed = JSON.parse(trimmed);
+      const parsed = JSON.parse(t)
       if (Array.isArray(parsed)) {
-        return parsed
-          .filter((block: any) => block.type === 'text')
-          .map((block: any) => block.text)
-          .join('\n\n');
+        const text = parsed
+          .filter((b: any) => b.type === 'text' && b.text?.trim())
+          .map((b: any) => b.text.trim())
+          .join('\n\n')
+        return text || null
       }
+      if (parsed?.type === 'tool_result' || parsed?.type === 'tool_use') return null
     } catch {}
   }
-  return content;
+  return content
 }
 
-const STATUS_STYLES: Record<string, { bg: string; text: string; dot: string }> = {
-  PENDING:     { bg: 'bg-neutral-100 dark:bg-neutral-800',    text: 'text-neutral-600 dark:text-neutral-400', dot: 'bg-neutral-400' },
-  PARKED:      { bg: 'bg-amber-100 dark:bg-amber-900/30',     text: 'text-amber-700 dark:text-amber-300',     dot: 'bg-amber-400'   },
-  CONTACTED:   { bg: 'bg-blue-100 dark:bg-blue-900/30',       text: 'text-blue-700 dark:text-blue-300',       dot: 'bg-blue-400'    },
-  REPLIED:     { bg: 'bg-purple-100 dark:bg-purple-900/30',   text: 'text-purple-700 dark:text-purple-300',   dot: 'bg-purple-400'  },
-  COMPLETED:   { bg: 'bg-green-100 dark:bg-green-900/30',     text: 'text-green-700 dark:text-green-300',     dot: 'bg-green-400'   },
-  OPTED_OUT:   { bg: 'bg-red-100 dark:bg-red-900/30',         text: 'text-red-700 dark:text-red-300',         dot: 'bg-red-400'     },
-  NO_RESPONSE: { bg: 'bg-neutral-100 dark:bg-neutral-800',    text: 'text-neutral-500 dark:text-neutral-500', dot: 'bg-neutral-300' },
-  HANDOFF:     { bg: 'bg-orange-100 dark:bg-orange-900/30',   text: 'text-orange-700 dark:text-orange-300',   dot: 'bg-orange-400' },
+function formatTime(ts: number | string): string {
+  return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
-const STATUS_LABELS: Record<string, string> = {
-  PENDING: 'Pending', PARKED: 'Parked', CONTACTED: 'Contacted',
-  REPLIED: 'Replied', COMPLETED: 'Completed', OPTED_OUT: 'Opted out', NO_RESPONSE: 'No response',
-  HANDOFF: 'Needs agent',
+function formatDate(d: string | Date): string {
+  return new Date(d).toLocaleDateString('en-US', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
-const OUTCOME_LABELS: Record<string, string> = {
-  COMPLETED: 'Completed', COMPLAINED: 'Complained', REBOOKED: 'Rebooked',
-  HANDED_OFF: 'Handed off', URGENT: 'Urgent', OPTED_OUT: 'Opted out', NO_RESPONSE: 'No response',
+// ─── Status config ─────────────────────────────────────────────────────────
+
+const STATUS_CONFIG: Record<string, { label: string; dot: string; badge: string }> = {
+  PENDING:     { label: 'Pending',     dot: 'bg-gray-300',    badge: 'bg-gray-100 text-gray-600' },
+  PARKED:      { label: 'Parked',      dot: 'bg-yellow-400',  badge: 'bg-yellow-100 text-yellow-700' },
+  CONTACTED:   { label: 'Contacted',   dot: 'bg-blue-400',    badge: 'bg-blue-100 text-blue-700' },
+  REPLIED:     { label: 'Replied',     dot: 'bg-purple-400',  badge: 'bg-purple-100 text-purple-700' },
+  COMPLETED:   { label: 'Completed',   dot: 'bg-green-400',   badge: 'bg-green-100 text-green-700' },
+  OPTED_OUT:   { label: 'Opted out',   dot: 'bg-red-400',     badge: 'bg-red-100 text-red-700' },
+  NO_RESPONSE: { label: 'No response', dot: 'bg-gray-300',    badge: 'bg-gray-100 text-gray-500' },
+  HANDOFF:     { label: 'Needs agent', dot: 'bg-orange-400',  badge: 'bg-orange-100 text-orange-700' },
 }
 
-// ── Conversation Thread Drawer ──────────────────────────────────────────────
+function isAgentSession(p: { sessionStatus?: string | null; outcome?: string | null }): boolean {
+  // If session is completed, it's no longer an active agent session
+  if (p.sessionStatus?.toLowerCase() === 'completed') {
+    return false
+  }
+  
+  return (
+    p.sessionStatus?.toLowerCase() === 'handed_off' ||
+    p.sessionStatus?.toLowerCase() === 'admin_handling' ||
+    p.outcome?.toUpperCase() === 'HANDED_OFF'
+  )
+}
 
-function ConversationDrawer({ patient, campaignId, lang, onClose }: {
-  patient: CampaignPatient; campaignId: string; lang: string; onClose: () => void
+// ─── Conversation Drawer (Watch Mode) ──────────────────────────────────────
+
+function ConversationDrawer({
+  patient,
+  campaignId,
+  onClose,
+}: {
+  patient: CampaignPatient
+  campaignId: string
+  onClose: () => void
 }) {
-  const messagesEndRef = useRef<HTMLDivElement>(null)
-  const [draft, setDraft] = useState('')
   const { toast } = useToast()
-  const queryClient = useQueryClient()
+  const qc = useQueryClient()
+  const navigate = useNavigate()
+  const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  const isHandoff = patient.outcome === 'HANDED_OFF' || patient.sessionStatus === 'handed_off' || patient.sessionStatus === 'admin_handling'
-  const isActive = patient.status === 'CONTACTED' || patient.status === 'REPLIED'
-
-  // Refresh conversation every 2s
-  const { data: refreshed } = useQuery<CampaignPatient & { sessionStatus?: string }>({
-    queryKey: ['campaign-conversation', patient.id],
+  const { data: conv, isLoading } = useQuery({
+    queryKey: ['conv', patient.id],
     queryFn: async () => {
       const token = localStorage.getItem('token')
-      const res = await fetch(`/api/admin/v1/campaigns/${campaignId}/patients/${patient.id}/conversation`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+      const res = await fetch(
+        `/api/admin/v1/campaigns/${campaignId}/patients/${patient.id}/conversation`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      )
       if (!res.ok) throw new Error('Failed to load conversation')
       return res.json()
     },
-    refetchInterval: 2_000,
+    refetchInterval: 2000,
   })
 
-  const current = refreshed ?? patient
-  const messages = current.messages ?? []
+  const live         = conv ?? patient
+  const sessionStatus = live.sessionStatus?.toLowerCase() ?? null
+  const isAgent      = isAgentSession(live)
+
+  const messages: CampaignMessage[] = (live.messages ?? []).filter((m: CampaignMessage) => {
+    const parsed = parseContent(m.content)
+    return !!parsed
+  })
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+  }, [messages.length])
 
-  const sendMut = useMutation({
-    mutationFn: (msg: string) => sendPatientMessage(campaignId, patient.id, msg),
-    onSuccess: () => {
-      setDraft('')
-      queryClient.invalidateQueries({ queryKey: ['campaign-conversation', patient.id] })
-      toast(lang === 'FR' ? 'Message envoyé' : 'Message sent', 'success')
-    },
-    onError: (err: any) => toast(err?.response?.data?.message ?? 'Send failed', 'error'),
-  })
-
-  const takeOverMut = useMutation({
+  const takeMut = useMutation({
     mutationFn: () => takeOverPatientConversation(campaignId, patient.id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['campaign-conversation', patient.id] })
-      queryClient.invalidateQueries({ queryKey: ['campaign', campaignId] })
-      toast(lang === 'FR' ? 'Conversation récupérée' : 'Conversation taken over', 'success')
+      qc.invalidateQueries({ queryKey: ['conv', patient.id] })
+      qc.invalidateQueries({ queryKey: ['campaign', campaignId] })
+      toast('You are now handling this patient', 'success')
+      navigate(`/handoff?patientId=${patient.id}`)
     },
-    onError: (err: any) => toast(err?.response?.data?.message ?? 'Error', 'error'),
+    onError: (e: any) => toast(e?.response?.data?.message ?? 'Error', 'error'),
   })
 
-  const resolveMut = useMutation({
-    mutationFn: () => resolvePatientConversation(campaignId, patient.id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['campaign', campaignId] })
-      queryClient.invalidateQueries({ queryKey: ['campaign-conversation', patient.id] })
-      onClose()
-    },
-    onError: (err: any) => toast(err?.response?.data?.message ?? 'Error', 'error'),
-  })
-
-  const handleSend = () => {
-    const trimmed = draft.trim()
-    if (!trimmed || sendMut.isPending) return
-    sendMut.mutate(trimmed)
-  }
-
-  const handleTakeOver = () => {
-    if (confirm(lang === 'FR' ? 'Récupérer cette conversation ? Le bot sera désactivé pour ce patient.' : 'Take over this conversation? The bot will be disabled for this patient.')) {
-      takeOverMut.mutate()
-    }
-  }
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [onClose])
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-xl bg-white dark:bg-neutral-900 shadow-2xl flex flex-col">
-        {/* Header */}
-        <div className="shrink-0 border-b px-5 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div>
-              <h3 className="font-semibold flex items-center gap-2">
-                {patient.patientName}
-                {isHandoff && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300">HANDOFF</span>}
-              </h3>
-              <p className="text-xs text-neutral-500">{patient.phone}</p>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+
+      <div className="relative w-full max-w-xl bg-white dark:bg-gray-900 flex flex-col shadow-2xl transition-colors duration-200">
+
+        {/* ── Header ──────────────────────────────────────────────────────── */}
+        <div className="shrink-0 border-b border-gray-100 dark:border-gray-800 px-5 py-4 bg-white dark:bg-gray-900">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-semibold text-gray-900 dark:text-gray-100 text-base truncate">
+                  {patient.patientName}
+                </span>
+                {isAgent && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-orange-100 dark:bg-orange-950/50 text-orange-700 dark:text-orange-400">
+                    <span className="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse" />
+                    Agent
+                  </span>
+                )}
+                {sessionStatus && !isAgent && (
+                  <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${
+                    sessionStatus === 'active' ? 'bg-green-100 text-green-700' :
+                    sessionStatus === 'awaiting_reply' ? 'bg-blue-100 text-blue-700' :
+                    'bg-gray-100 text-gray-500'
+                  }`}>
+                    {sessionStatus.replace('_', ' ')}
+                  </span>
+                )}
+              </div>
+              <p className="text-sm text-gray-400 dark:text-gray-500 mt-0.5 font-mono">{patient.phone}</p>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              {!isAgent && (sessionStatus === 'active' || sessionStatus === 'awaiting_reply') && (
+                <button
+                  onClick={() => takeMut.mutate()}
+                  disabled={takeMut.isPending}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-orange-200 dark:border-orange-900 bg-orange-50 dark:bg-orange-950/30 text-orange-700 dark:text-orange-400 hover:bg-orange-100 dark:hover:bg-orange-900/50 text-xs font-medium transition-colors"
+                >
+                  {takeMut.isPending ? <Loader2 size={12} className="animate-spin" /> : <UserRound size={12} />}
+                  Take over
+                </button>
+              )}
+
+              <button onClick={onClose} className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg text-gray-400 transition-colors">
+                <X size={16} />
+              </button>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            {isActive && !isHandoff && (
-              <button onClick={handleTakeOver} disabled={takeOverMut.isPending} className="btn-outline h-8 px-3 text-xs flex items-center gap-1.5 border-orange-300 text-orange-600 hover:bg-orange-50">
-                <UserRound size={14} />
-                {lang === 'FR' ? 'Prendre en charge' : 'Take over'}
-              </button>
-            )}
-            {isHandoff && (
-              <button onClick={() => resolveMut.mutate()} disabled={resolveMut.isPending} className="btn-outline h-8 px-3 text-xs flex items-center gap-1.5 border-green-300 text-green-600 hover:bg-green-50">
-                <CheckCircle size={14} />
-                {lang === 'FR' ? 'Résoudre' : 'Resolve'}
-              </button>
-            )}
-            <button onClick={onClose} className="btn-ghost h-8 w-8 p-0"><XCircle size={18} /></button>
+
+          <div className="flex items-center gap-4 mt-3 text-xs text-gray-400 dark:text-gray-500">
+            <span className="flex items-center gap-1"><Clock size={10} />{formatDate(patient.visitDate)}</span>
+            <span className="flex items-center gap-1"><Stethoscope size={10} />{patient.medecinTraitant}</span>
+            <span className="flex items-center gap-1"><MessageSquare size={10} />{messages.length} messages</span>
+            <span>{live.turnCount ?? patient.turnCount} turns</span>
           </div>
         </div>
 
-        {/* Info strip */}
-        <div className="shrink-0 px-5 py-2 bg-neutral-50 dark:bg-neutral-800/50 border-b flex items-center gap-4 text-xs text-neutral-500">
-          <span>📅 {new Date(patient.visitDate).toLocaleDateString()}</span>
-          <span>👨‍⚕️ {patient.medecinTraitant}</span>
-          <span>🔄 {current.turnCount ?? patient.turnCount} turns</span>
-          {current.sessionStatus && (
-            <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
-              current.sessionStatus === 'awaiting_reply' ? 'bg-blue-100 text-blue-700' :
-              current.sessionStatus === 'active' ? 'bg-green-100 text-green-700' :
-              current.sessionStatus === 'admin_handling' ? 'bg-orange-100 text-orange-700' :
-              current.sessionStatus === 'handed_off' ? 'bg-red-100 text-red-700' :
-              'bg-neutral-100 text-neutral-500'
-            }`}>
-              {current.sessionStatus}
-            </span>
-          )}
-        </div>
-
-        {/* Handoff banner */}
-        {isHandoff && (
-          <div className="shrink-0 px-5 py-2.5 bg-orange-50 dark:bg-orange-900/20 border-b border-orange-100 flex items-center gap-2">
-            <UserRound size={14} className="text-orange-600" />
-            <p className="text-xs text-orange-700">{lang === 'FR' ? 'Agent mode — vous pouvez répondre directement.' : 'Agent mode — you can reply directly to the patient.'}</p>
-          </div>
-        )}
-
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
-          {messages.length === 0 ? (
-            <p className="text-sm text-neutral-400 text-center py-8">{lang === 'FR' ? 'Aucun message' : 'No messages'}</p>
+        {/* ── Messages ─────────────────────────────────────────────────────── */}
+        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 bg-gray-50 dark:bg-gray-950">
+          {isLoading && messages.length === 0 ? (
+            <div className="flex items-center justify-center py-16">
+              <Loader2 size={20} className="animate-spin text-gray-300 dark:text-gray-700" />
+            </div>
+          ) : messages.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-gray-400 dark:text-gray-600">
+              <MessageSquare size={28} className="mb-2 opacity-30" />
+              <p className="text-sm">No messages yet</p>
+            </div>
           ) : (
-            messages.map((msg: CampaignMessage, i: number) => (
-              <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 ${
-                  msg.role === 'user'
-                    ? 'bg-blue-600 text-white rounded-br-md'
-                    : isHandoff
-                      ? 'bg-orange-50 dark:bg-orange-900/20 text-neutral-800 rounded-bl-md border border-orange-200'
-                      : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-800 rounded-bl-md'
-                }`}>
-                  <p className="text-sm whitespace-pre-wrap">{parseMessageContent(msg.content)}</p>
-                  {msg.timestamp && (
-                    <p className={`text-[10px] mt-1 ${msg.role === 'user' ? 'text-blue-200' : 'text-neutral-400'}`}>
-                      {new Date(msg.timestamp).toLocaleTimeString(lang === 'FR' ? 'fr-MA' : 'en-GB', { hour: '2-digit', minute: '2-digit' })}
-                    </p>
-                  )}
+            messages.map((msg, i) => {
+              const content = parseContent(msg.content)
+              if (!content) return null
+
+              const isPatient    = msg.role === 'user'
+              const isStaffReply = !isPatient && isAgent
+
+              return (
+                <div key={i} className={`flex ${isPatient ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[78%] rounded-2xl px-4 py-2.5 text-left ${
+                    isPatient
+                      ? 'bg-blue-600 text-white rounded-br-sm'
+                      : isStaffReply
+                        ? 'bg-orange-50 dark:bg-orange-950/20 text-gray-900 dark:text-gray-100 rounded-bl-sm border border-orange-200 dark:border-orange-900/40'
+                        : 'bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 rounded-bl-sm border border-gray-100 dark:border-gray-800 shadow-sm'
+                  }`}>
+                    {isStaffReply && (
+                      <p className="text-[10px] font-semibold text-orange-500 dark:text-orange-400 mb-1 uppercase tracking-wide">Staff</p>
+                    )}
+                    <p className="text-sm whitespace-pre-wrap leading-relaxed">{content}</p>
+                    {msg.timestamp && (
+                      <p className={`text-[10px] mt-1.5 ${isPatient ? 'text-blue-200' : 'text-gray-400 dark:text-gray-500'}`}>
+                        {formatTime(msg.timestamp)}
+                      </p>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))
+              )
+            })
           )}
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input — shown during handoff */}
-        {(isHandoff || (current.sessionStatus === 'admin_handling')) && (
-          <div className="shrink-0 border-t px-4 py-3">
-            <div className="flex items-center gap-2">
-              <textarea
-                className="flex-1 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
-                rows={2}
-                placeholder={lang === 'FR' ? 'Écrire un message...' : 'Type a message...'}
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
-              />
-              <button onClick={handleSend} disabled={sendMut.isPending || !draft.trim()} className="btn-primary h-10 w-10 p-0 flex items-center justify-center disabled:opacity-40">
-                {sendMut.isPending ? <RefreshCw size={16} className="animate-spin" /> : <Send size={16} />}
+        {/* ── Input (Strictly Watch Mode with Reply Redirect) ────────────── */}
+        <div className="shrink-0 border-t border-gray-100 dark:border-gray-800 px-4 py-4 bg-gray-50 dark:bg-gray-950 text-center flex flex-col items-center justify-center">
+          {isAgent ? (
+            <div className="flex flex-col items-center gap-3 w-full">
+              <p className="text-xs text-orange-600 dark:text-orange-400 font-medium">
+                This patient requires active agent attention.
+              </p>
+              <button
+                onClick={() => {
+                  onClose()
+                  navigate(`/handoff?patientId=${patient.id}`)
+                }}
+                className="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg bg-orange-600 hover:bg-orange-700 text-white text-sm font-semibold transition-colors shadow-sm w-full max-w-xs justify-center"
+              >
+                <MessageSquare size={16} /> Reply in Handoff Panel
               </button>
             </div>
-          </div>
-        )}
+          ) : (
+            <p className="text-xs text-gray-400 dark:text-gray-500">
+              {sessionStatus === 'completed'
+                ? 'This conversation has been marked resolved.'
+                : 'Viewing conversation history (Read-only mode).'}
+            </p>
+          )}
+        </div>
       </div>
     </div>
   )
 }
 
-// ── Main Page ────────────────────────────────────────────────────────────────
+// ─── Patient Row ─────────────────────────────────────────────────────────────
+
+function PatientRow({
+  patient,
+  onClick,
+}: {
+  patient: CampaignPatient
+  onClick: () => void
+}) {
+  const agent = isAgentSession(patient)
+  const sk    = agent ? 'HANDOFF' : patient.status
+  const cfg   = STATUS_CONFIG[sk] ?? STATUS_CONFIG.PENDING
+
+  return (
+    <div
+      onClick={onClick}
+      className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 px-4 py-3.5 flex items-center gap-3 cursor-pointer hover:border-blue-200 dark:hover:border-blue-800 hover:shadow-sm transition-all group"
+    >
+      <div className={`w-2 h-2 rounded-full shrink-0 ${cfg.dot} ${agent ? 'animate-pulse' : ''}`} />
+
+      <div className="flex-1 min-w-0 text-start">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="font-medium text-gray-900 dark:text-gray-100 text-sm truncate">{patient.patientName}</span>
+          <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${cfg.badge}`}>
+            {cfg.label}
+          </span>
+          {patient.outcome && patient.outcome !== 'HANDED_OFF' && (
+            <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-50 dark:bg-gray-950 text-gray-400 dark:text-gray-500 border border-gray-100 dark:border-gray-800">
+              {patient.outcome}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-3 mt-1 text-xs text-gray-400 dark:text-gray-500 flex-wrap">
+          <span className="flex items-center gap-1"><Phone size={9} />{patient.phone}</span>
+          <span className="flex items-center gap-1"><Stethoscope size={9} />{patient.medecinTraitant}</span>
+          <span className="flex items-center gap-1"><Clock size={9} />{formatDate(patient.visitDate)}</span>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3 shrink-0 text-xs text-gray-400 dark:text-gray-500">
+        {(patient.messages?.length ?? 0) > 0 && (
+          <span className="flex items-center gap-1">
+            <MessageSquare size={11} />{patient.messages.length}
+          </span>
+        )}
+        <span>{patient.turnCount}t</span>
+        <ChevronRight size={14} className="text-gray-300 dark:text-gray-700 group-hover:text-gray-400 dark:group-hover:text-gray-500 transition-colors" />
+      </div>
+    </div>
+  )
+}
+
+// ─── Main Page ───────────────────────────────────────────────────────────────
+
+const FILTERS = ['ALL', 'HANDOFF', 'PENDING', 'PARKED', 'CONTACTED', 'REPLIED', 'COMPLETED', 'OPTED_OUT', 'NO_RESPONSE'] as const
+type FilterKey = typeof FILTERS[number]
 
 export function CampaignPatientsPage() {
-  const { campaignId } = useParams<{ campaignId: string }>()
-  const { lang } = useAuth()
-  const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
-  const initialStatus = (searchParams.get('status') as CampaignPatientStatus | null) ?? 'ALL'
-  const [statusFilter, setStatusFilter] = useState<string>(initialStatus)
-  const [selectedPatient, setSelectedPatient] = useState<CampaignPatient | null>(null)
+  const { campaignId }    = useParams<{ campaignId: string }>()
+  const navigate          = useNavigate()
+  const [searchParams]    = useSearchParams()
+  const initialFilter     = (searchParams.get('status') ?? 'ALL') as FilterKey
+  const [filter, setFilter] = useState<FilterKey>(initialFilter)
+  const [selected, setSelected] = useState<CampaignPatient | null>(null)
 
-  const { data: campaign, isLoading, isError, refetch } = useQuery<Campaign & { patients: CampaignPatient[] }>({
+  const { data, isLoading, isError, refetch } = useQuery<Campaign & { patients: CampaignPatient[] }>({
     queryKey: ['campaign', campaignId],
     queryFn: () => getCampaign(campaignId!),
     enabled: !!campaignId,
-    refetchInterval: 5_000,
+    refetchInterval: 5000,
   })
 
   if (isLoading) return <PageLoader />
 
-  if (isError || !campaign) {
+  if (isError || !data) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 gap-3">
-        <p className="text-sm text-neutral-500">{lang === 'FR' ? 'Erreur de chargement' : 'Error loading'}</p>
-        <button className="btn-outline" onClick={() => refetch()}>{lang === 'FR' ? 'Réessayer' : 'Retry'}</button>
+      <div className="flex flex-col items-center justify-center h-64 gap-3 text-gray-500">
+        <AlertCircle size={20} className="text-gray-300 dark:text-gray-700" />
+        <p className="text-sm">Failed to load campaign</p>
+        <button
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm border border-gray-200 dark:border-gray-800 rounded-lg bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+          onClick={() => refetch()}
+        >
+          <RefreshCw size={13} /> Retry
+        </button>
       </div>
     )
   }
 
-  const patients = campaign.patients ?? []
+  const patients    = data.patients ?? []
+  const agentCount  = patients.filter(isAgentSession).length
 
-  // Compute handoff count
-  const handoffCount = patients.filter(p =>
-    p.outcome === 'HANDED_OFF' || p.sessionStatus === 'handed_off' || p.sessionStatus === 'admin_handling'
-  ).length
+  const counts: Partial<Record<FilterKey, number>> = { ALL: patients.length, HANDOFF: agentCount }
+  for (const p of patients) {
+    const k = p.status as FilterKey
+    counts[k] = (counts[k] ?? 0) + 1
+  }
 
-  const counts: Record<string, number> = { ALL: patients.length, HANDOFF: handoffCount }
-  for (const p of patients) counts[p.status] = (counts[p.status] ?? 0) + 1
-
-  const filtered = statusFilter === 'ALL' ? patients
-    : statusFilter === 'HANDOFF' ? patients.filter(p =>
-        p.outcome === 'HANDED_OFF' || p.sessionStatus === 'handed_off' || p.sessionStatus === 'admin_handling'
-      )
-    : patients.filter(p => p.status === statusFilter)
-
-  const filters = ['ALL', 'HANDOFF', 'PENDING', 'CONTACTED', 'REPLIED', 'COMPLETED', 'OPTED_OUT', 'NO_RESPONSE']
-  const getLabel = (s: string) => s === 'HANDOFF' ? (lang === 'FR' ? 'Agent' : 'Agent') : STATUS_LABELS[s] || s
+  const filtered =
+    filter === 'ALL'     ? patients :
+    filter === 'HANDOFF' ? patients.filter(isAgentSession) :
+    patients.filter(p => p.status === filter)
 
   return (
-    <div className="max-w-6xl">
+    <div className="max-w-3xl mx-auto px-4 pb-10">
       <div className="mb-6">
-        <button className="flex items-center gap-2 text-sm text-neutral-500 hover:text-neutral-700 mb-3" onClick={() => navigate('/campaigns')}>
-          <ArrowLeft size={14} />
-          {lang === 'FR' ? '← Retour' : '← Back'}
+        <button
+          className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 mb-3 transition-colors"
+          onClick={() => navigate('/campaigns')}
+        >
+          <ArrowLeft size={13} /> Back to campaigns
         </button>
-        <PageHeader title={campaign.name} subtitle={`${patients.length} patients • ${campaign.status}`} />
+        <PageHeader
+          title={data.name}
+          subtitle={`${patients.length} patients · ${data.status}`}
+        />
       </div>
 
-      {/* Filter chips */}
-      <div className="flex flex-wrap gap-2 mb-6">
-        {filters.map(s => {
-          const isActive = statusFilter === s
-          const count = counts[s] ?? 0
+      <div className="grid grid-cols-4 gap-3 mb-6">
+        {[
+          { label: 'Contacted', value: data.contactedCount, color: 'text-blue-600 dark:text-blue-400' },
+          { label: 'Replied',   value: data.repliedCount,   color: 'text-purple-600 dark:text-purple-400' },
+          { label: 'Completed', value: data.completedCount, color: 'text-green-600 dark:text-green-400' },
+          { label: 'No reply',  value: data.noResponseCount, color: 'text-gray-400 dark:text-gray-500' },
+        ].map(s => (
+          <div key={s.label} className="bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 rounded-xl px-4 py-3 text-start">
+            <p className={`text-xl font-bold ${s.color}`}>{s.value}</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{s.label}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex flex-wrap gap-2 mb-5">
+        {FILTERS.map(f => {
+          const count = counts[f] ?? 0
+          const cfg   = STATUS_CONFIG[f]
+          const isActive = filter === f
           return (
-            <button key={s} className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
-              isActive ? 'bg-blue-600 text-white shadow-sm' :
-              s === 'HANDOFF' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 hover:bg-orange-200' :
-              'bg-neutral-100 dark:bg-neutral-800 text-neutral-600 hover:bg-neutral-200 dark:hover:bg-neutral-700'
-            }`} onClick={() => setStatusFilter(s)}>
-              {getLabel(s)}{count > 0 && <span className="ml-1.5 opacity-70">({count})</span>}
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                isActive
+                  ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900 shadow-sm'
+                  : f === 'HANDOFF' && agentCount > 0
+                    ? 'bg-orange-100 dark:bg-orange-950/50 text-orange-700 dark:text-orange-400 hover:bg-orange-200 dark:hover:bg-orange-900'
+                    : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+              }`}
+            >
+              {cfg?.label ?? f}
+              {count > 0 && <span className="ml-1.5 opacity-60">{count}</span>}
             </button>
           )
         })}
       </div>
 
       {filtered.length === 0 ? (
-        <Empty message={lang === 'FR' ? 'Aucun patient' : 'No patients'} />
+        <Empty message="No patients in this category" />
       ) : (
         <div className="space-y-2">
-          {filtered.map(patient => {
-            const isHandoff = patient.outcome === 'HANDED_OFF' || patient.sessionStatus === 'handed_off' || patient.sessionStatus === 'admin_handling'
-            const statusKey = isHandoff ? 'HANDOFF' : patient.status
-            const style = STATUS_STYLES[statusKey] ?? { bg: '', text: '', dot: 'bg-neutral-400' }
-
-            return (
-              <div key={patient.id} className="card p-4 flex items-center gap-4 cursor-pointer hover:shadow-md transition-shadow" onClick={() => setSelectedPatient(patient)}>
-                <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${style.dot} ${isHandoff ? 'animate-pulse' : ''}`} />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-medium truncate">{patient.patientName}</span>
-                    <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${style.bg} ${style.text}`}>
-                      {isHandoff ? '🚨 Agent' : STATUS_LABELS[patient.status]}
-                    </span>
-                    {patient.outcome && !isHandoff && (
-                      <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-neutral-100 dark:bg-neutral-800 text-neutral-500">
-                        {OUTCOME_LABELS[patient.outcome] ?? patient.outcome}
-                      </span>
-                    )}
-                    {patient.sessionStatus && (
-                      <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-blue-50 dark:bg-blue-900/20 text-blue-600">
-                        {patient.sessionStatus}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-3 mt-1 text-xs text-neutral-500 flex-wrap">
-                    <span className="flex items-center gap-1"><Phone size={10} />{patient.phone}</span>
-                    <span className="flex items-center gap-1"><Stethoscope size={10} />{patient.medecinTraitant}</span>
-                    <span className="flex items-center gap-1"><Clock size={10} />{new Date(patient.visitDate).toLocaleDateString()}</span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 shrink-0 text-xs text-neutral-400">
-                  {patient.messages?.length > 0 && (
-                    <span className="flex items-center gap-1"><MessageSquare size={12} />{patient.messages.length}</span>
-                  )}
-                  <span>{patient.turnCount} turns</span>
-                </div>
-              </div>
-            )
-          })}
+          {filtered.map(p => (
+            <PatientRow 
+              key={p.id} 
+              patient={p} 
+              onClick={() => setSelected(p)} // Changed back to just opening the drawer for everyone
+            />
+          ))}
         </div>
       )}
 
-      {selectedPatient && (
-        <ConversationDrawer patient={selectedPatient} campaignId={campaignId!} lang={lang} onClose={() => setSelectedPatient(null)} />
+      {selected && (
+        <ConversationDrawer
+          patient={selected}
+          campaignId={campaignId!}
+          onClose={() => setSelected(null)}
+        />
       )}
     </div>
   )

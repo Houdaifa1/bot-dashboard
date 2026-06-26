@@ -40,17 +40,16 @@ function CreateCampaignModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-
     const payload: any = { name }
 
-    // Add date filter if provided
     if (filterDateFrom) payload.filterDateFrom = filterDateFrom
     if (filterDateTo) payload.filterDateTo = filterDateTo
 
-    // Schedule or send immediately
-    // Send immediately = no scheduledStartAt → launches on creation
     if (scheduleType === SCHEDULE_LATER && scheduledStartAt) {
       payload.scheduledStartAt = new Date(scheduledStartAt).toISOString()
+    } else {
+      // FORCE 0 HERE SO THE BACKEND KNOWS IT'S IMMEDIATE
+      payload.delayHours = 0
     }
 
     onSave(payload)
