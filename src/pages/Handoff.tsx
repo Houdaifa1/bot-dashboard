@@ -15,7 +15,6 @@ function parseMessageContent(content: string): string {
     try {
       const parsed = JSON.parse(trimmed);
       if (Array.isArray(parsed)) {
-        // Extract text from content blocks (e.g., [{"type":"text","text":"Hello"}])
         return parsed
           .filter((block: any) => block.type === 'text')
           .map((block: any) => block.text)
@@ -52,17 +51,24 @@ function ConversationDrawer({ session, lang, onClose }: {
   const queryClient = useQueryClient()
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const [draft, setDraft] = useState('')
-  const [localMsgs, setLocalMsgs] = useState(session.messages)
+
+  // Poll fresh session data every 2s for real-time updates
+  const { data: sessions } = useQuery<HandoffSession[]>({
+    queryKey: ['handoff-sessions'],
+    queryFn: () => getHandoffSessions(),
+    refetchInterval: 2_000,
+  })
+
+  const fresh = sessions?.find(s => s.phone === session.phone)
+  const messages = fresh?.messages ?? session.messages
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [localMsgs])
+  }, [messages])
 
   const sendMut = useMutation({
     mutationFn: () => sendHandoffMessage(session.phone, draft.trim()),
     onSuccess: () => {
-      const newMsg = { role: 'assistant', content: draft.trim(), timestamp: Date.now() }
-      setLocalMsgs(prev => [...prev, newMsg])
       setDraft('')
       queryClient.invalidateQueries({ queryKey: ['handoff-sessions'] })
       toast(lang === 'FR' ? 'Message envoyé' : 'Message sent', 'success')
@@ -120,14 +126,14 @@ function ConversationDrawer({ session, lang, onClose }: {
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
-          {localMsgs.map((msg, i) => (
+          {messages.map((msg: any, i: number) => (
             <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 ${
-                  msg.role === 'user'
-                    ? 'bg-blue-600 text-white rounded-br-md'
-                    : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 rounded-bl-md'
-                }`}>
-                  <p className="text-sm whitespace-pre-wrap">{parseMessageContent(msg.content)}</p>
+              <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 ${
+                msg.role === 'user'
+                  ? 'bg-blue-600 text-white rounded-br-md'
+                  : 'bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 rounded-bl-md'
+              }`}>
+                <p className="text-sm whitespace-pre-wrap">{parseMessageContent(msg.content)}</p>
                 {msg.timestamp && (
                   <p className={`text-[10px] mt-1 ${msg.role === 'user' ? 'text-blue-200' : 'text-neutral-400'}`}>
                     {formatTime(msg.timestamp)}
@@ -204,7 +210,7 @@ export function HandoffPage() {
   const { data: sessions, isLoading, isError, refetch } = useQuery<HandoffSession[]>({
     queryKey: ['handoff-sessions'],
     queryFn: () => getHandoffSessions(),
-    refetchInterval: 10_000,
+    refetchInterval: 2_000,
   })
 
   if (isLoading) return <PageLoader />

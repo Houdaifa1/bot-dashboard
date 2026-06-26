@@ -24,18 +24,19 @@ const STATUS_STYLES: Record<CampaignStatus, { bg: string; text: string; label: s
 
 // ── Create Modal ─────────────────────────────────────────────────────────────
 
+const SEND_NOW = 'send_now'
+const SCHEDULE_LATER = 'schedule_later'
+
 function CreateCampaignModal({
   open, onClose, onSave, saving, lang,
 }: {
   open: boolean; onClose: () => void; onSave: (data: any) => void; saving: boolean; lang: string
 }) {
   const [name, setName] = useState('')
-  const [filterDoctor, setFilterDoctor] = useState('')
-  const [filterMotif, setFilterMotif] = useState('')
   const [filterDateFrom, setFilterDateFrom] = useState('')
   const [filterDateTo, setFilterDateTo] = useState('')
   const [scheduledStartAt, setScheduledStartAt] = useState('')
-  const [delayHours, setDelayHours] = useState<number | null>(null)
+  const [scheduleType, setScheduleType] = useState(SEND_NOW)
 
   const { data: clinic } = useQuery<Clinic>({
     queryKey: ['clinic-settings'],
@@ -44,71 +45,85 @@ function CreateCampaignModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    onSave({
-      name,
-      ...(filterDoctor && { filterDoctor }),
-      ...(filterMotif && { filterMotif }),
-      ...(filterDateFrom && { filterDateFrom }),
-      ...(filterDateTo && { filterDateTo }),
-      ...(scheduledStartAt && { scheduledStartAt: new Date(scheduledStartAt).toISOString() }),
-      ...(delayHours !== null && { delayHours }),
-    })
+
+    const payload: any = { name }
+
+    // Add date filter if provided
+    if (filterDateFrom) payload.filterDateFrom = filterDateFrom
+    if (filterDateTo) payload.filterDateTo = filterDateTo
+
+    // Schedule or send immediately
+    // Send immediately = no scheduledStartAt → launches on creation
+    if (scheduleType === SCHEDULE_LATER && scheduledStartAt) {
+      payload.scheduledStartAt = new Date(scheduledStartAt).toISOString()
+    }
+
+    onSave(payload)
   }
 
-  const canSubmit = name.trim().length >= 2 && (filterDoctor || filterMotif || filterDateFrom || filterDateTo)
+  const canSubmit = name.trim().length >= 2
 
   return (
     <Modal open={open} onClose={onClose} title={lang === 'FR' ? 'Nouvelle campagne' : 'New campaign'} size="md">
       <form onSubmit={handleSubmit} className="space-y-4">
-        <Field label={lang === 'FR' ? 'Nom' : 'Name'}>
-          <input className="input h-10" value={name} onChange={e => setName(e.target.value)} required minLength={2} maxLength={100} />
+        {/* Name — simple, just a name */}
+        <Field label={lang === 'FR' ? 'Nom de la campagne' : 'Campaign name'}>
+          <input className="input h-10" value={name} onChange={e => setName(e.target.value)} required minLength={2} maxLength={100} placeholder="ex: Suivi post-consultation juin" />
         </Field>
 
-        <div className="grid grid-cols-2 gap-4">
-          <Field label={lang === 'FR' ? 'Médecin (filtre)' : 'Doctor (filter)'}>
-            <input className="input h-10" value={filterDoctor} onChange={e => setFilterDoctor(e.target.value)} placeholder={lang === 'FR' ? 'Ex: Dr Ahmed' : 'e.g. Dr Ahmed'} />
-          </Field>
-          <Field label={lang === 'FR' ? 'Motif (filtre)' : 'Reason (filter)'}>
-            <input className="input h-10" value={filterMotif} onChange={e => setFilterMotif(e.target.value)} placeholder={lang === 'FR' ? 'Ex: Consultation' : 'e.g. Consultation'} />
-          </Field>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <Field label={lang === 'FR' ? 'Date début' : 'Date from'}>
-            <input type="date" className="input h-10" value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)} />
-          </Field>
-          <Field label={lang === 'FR' ? 'Date fin' : 'Date to'}>
-            <input type="date" className="input h-10" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} />
-          </Field>
-        </div>
-
-        <Field label={lang === 'FR' ? "Délai avant premier envoi (heures)" : 'Delay before first message (hours)'}>
-          <input
-            type="number"
-            min={0}
-            max={168}
-            className="input h-10"
-            value={delayHours ?? clinic?.campaignDelayHours ?? 24}
-            onChange={e => setDelayHours(parseInt(e.target.value) || 0)}
-          />
-          <p className="text-xs text-neutral-400 mt-1">
-            {lang === 'FR'
-              ? `Par défaut: ${clinic?.campaignDelayHours ?? 24}h (réglage clinic). 0 = envoi immédiat.`
-              : `Default: ${clinic?.campaignDelayHours ?? 24}h (clinic setting). 0 = send immediately.`
-            }
+        {/* Patients — just a date range, most common use case */}
+        <div className="border border-neutral-200 dark:border-neutral-700 rounded-lg p-4 space-y-3">
+          <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">
+            {lang === 'FR' ? '🩺 Patients à cibler' : '🩺 Target patients'}
           </p>
-        </Field>
+          <p className="text-xs text-neutral-400 dark:text-neutral-500">
+            {lang === 'FR'
+              ? 'Sélectionnez les patients par leur date de visite (optionnel — si vide, tous les patients avec numéro valide seront ciblés)'
+              : 'Filter patients by their visit date (optional — if empty, all patients with valid phone numbers will be targeted)'}
+          </p>
+          <div className="grid grid-cols-2 gap-4">
+            <Field label={lang === 'FR' ? 'Visite du' : 'Visit from'}>
+              <input type="date" className="input h-10" value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)} />
+            </Field>
+            <Field label={lang === 'FR' ? 'Visite au' : 'Visit to'}>
+              <input type="date" className="input h-10" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} />
+            </Field>
+          </div>
+        </div>
 
-        <Field label={lang === 'FR' ? 'Programmer le démarrage (optionnel)' : 'Schedule start (optional)'}>
-          <input type="datetime-local" className="input h-10" value={scheduledStartAt} onChange={e => setScheduledStartAt(e.target.value)} />
-        </Field>
+        {/* Schedule — simple choice */}
+        <div className="border border-neutral-200 dark:border-neutral-700 rounded-lg p-4 space-y-3">
+          <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">
+            {lang === 'FR' ? '⏰ Envoi' : '⏰ Send'}
+          </p>
+          <div className="flex gap-4">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="radio" name="schedule" checked={scheduleType === SEND_NOW} onChange={() => setScheduleType(SEND_NOW)} className="accent-blue-600" />
+              <span className="text-sm">{lang === 'FR' ? 'Envoyer maintenant' : 'Send now'}</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="radio" name="schedule" checked={scheduleType === SCHEDULE_LATER} onChange={() => setScheduleType(SCHEDULE_LATER)} className="accent-blue-600" />
+              <span className="text-sm">{lang === 'FR' ? 'Programmer' : 'Schedule'}</span>
+            </label>
+          </div>
+          {scheduleType === SCHEDULE_LATER && (
+            <input
+              type="datetime-local"
+              className="input h-10 mt-2"
+              value={scheduledStartAt}
+              onChange={e => setScheduledStartAt(e.target.value)}
+            />
+          )}
+        </div>
 
         <div className="flex justify-end gap-3 pt-2">
           <button type="button" className="btn-outline" onClick={onClose} disabled={saving}>
             {lang === 'FR' ? 'Annuler' : 'Cancel'}
           </button>
           <button type="submit" className="btn-primary" disabled={saving || !canSubmit}>
-            {saving ? <Loader2 size={14} className="animate-spin" /> : lang === 'FR' ? 'Créer' : 'Create'}
+            {saving ? <Loader2 size={14} className="animate-spin" /> : (
+              scheduleType === SCHEDULE_LATER ? (lang === 'FR' ? 'Programmer' : 'Schedule') : (lang === 'FR' ? 'Lancer' : 'Launch')
+            )}
           </button>
         </div>
       </form>
