@@ -70,9 +70,11 @@ function ConversationThread({ patient, campaignId, lang, onClose }: Conversation
   const { toast } = useToast()
   const queryClient = useQueryClient()
 
-  const isHandoff =
-    patient.status === 'COMPLETED' &&
-    (patient.outcome === 'HANDED_OFF' || patient.sessionStatus === 'handed_off' || patient.sessionStatus === 'admin_handling')
+  const [isHandoff, setIsHandoff] = useState(
+    patient.outcome === 'HANDED_OFF' ||
+    patient.sessionStatus === 'handed_off' ||
+    patient.sessionStatus === 'admin_handling'
+  )
 
   // Refresh conversation every 3s when drawer is open
   const { data: refreshed } = useQuery<CampaignPatient>({
@@ -91,6 +93,13 @@ function ConversationThread({ patient, campaignId, lang, onClose }: Conversation
   useEffect(() => {
     if (refreshed?.messages) {
       setLocalMessages(refreshed.messages)
+    }
+    if (refreshed?.sessionStatus !== undefined) {
+      setIsHandoff(
+        refreshed.outcome === 'HANDED_OFF' ||
+        refreshed.sessionStatus === 'handed_off' ||
+        refreshed.sessionStatus === 'admin_handling'
+      )
     }
   }, [refreshed])
 
@@ -320,7 +329,9 @@ export function CampaignPatientsPage() {
   const filtered = statusFilter === 'ALL'
     ? patients
     : statusFilter === 'HANDOFF'
-      ? patients.filter(p => p.status === 'COMPLETED' && (p.outcome === 'HANDED_OFF' || p.sessionStatus === 'handed_off' || p.sessionStatus === 'admin_handling'))
+      ? patients.filter(p =>
+          p.outcome === 'HANDED_OFF' || p.sessionStatus === 'handed_off' || p.sessionStatus === 'admin_handling'
+        )
       : patients.filter(p => p.status === statusFilter)
 
   // Status counts for filter chips
@@ -385,10 +396,9 @@ export function CampaignPatientsPage() {
       ) : (
         <div className="space-y-2">
           {filtered.map(patient => {
-            const style         = STATUS_STYLES[patient.status]
+            const style     = STATUS_STYLES[patient.status]
             const isHandoff =
-              patient.status === 'COMPLETED' &&
-              (patient.outcome === 'HANDED_OFF' || patient.sessionStatus === 'handed_off' || patient.sessionStatus === 'admin_handling')
+              patient.outcome === 'HANDED_OFF' || patient.sessionStatus === 'handed_off' || patient.sessionStatus === 'admin_handling'
 
             return (
               <div
