@@ -141,6 +141,10 @@ export const sendPatientMessage = (campaignId: string, patientId: string, messag
   api.post(`/api/admin/v1/campaigns/${campaignId}/patients/${patientId}/send-message`, { message }).then(r => r.data)
 export const resolvePatientConversation = (campaignId: string, patientId: string) =>
   api.post(`/api/admin/v1/campaigns/${campaignId}/patients/${patientId}/resolve`).then(r => r.data)
+export const takeOverPatientConversation = (campaignId: string, patientId: string) =>
+  api.post(`/api/admin/v1/campaigns/${campaignId}/patients/${patientId}/take-over`).then(r => r.data)
+export const closePatientConversation = (campaignId: string, patientId: string) =>
+  api.post(`/api/admin/v1/campaigns/${campaignId}/patients/${patientId}/close`).then(r => r.data)
 
 
 // ── Complaints ────────────────────────────────────────────────────────────────

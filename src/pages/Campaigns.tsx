@@ -5,11 +5,11 @@ import {
   Plus, Play, Pause, Square, CalendarClock, Users, MessageSquare,
   AlertTriangle, CheckCircle2, XCircle, Loader2, Ban, ChevronRight, Trash2,
 } from 'lucide-react'
-import { getCampaigns, getClinic, createCampaign, launchCampaign, pauseCampaign, resumeCampaign, stopCampaign, cancelCampaignSchedule, deleteCampaign } from '../api'
+import { getCampaigns, createCampaign, launchCampaign, pauseCampaign, resumeCampaign, stopCampaign, cancelCampaignSchedule, deleteCampaign } from '../api'
 import { useAuth } from '../store/auth'
 import { useToast } from '../store/toast'
 import { PageHeader, PageLoader, Modal, ConfirmDialog, Empty, Field } from '../components/ui'
-import type { Campaign, CampaignStatus, Clinic } from '../types'
+import type { Campaign, CampaignStatus } from '../types'
 
 // ── Status config ────────────────────────────────────────────────────────────
 
@@ -37,11 +37,6 @@ function CreateCampaignModal({
   const [filterDateTo, setFilterDateTo] = useState('')
   const [scheduledStartAt, setScheduledStartAt] = useState('')
   const [scheduleType, setScheduleType] = useState(SEND_NOW)
-
-  const { data: clinic } = useQuery<Clinic>({
-    queryKey: ['clinic-settings'],
-    queryFn: () => getClinic(),
-  })
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
