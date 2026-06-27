@@ -42,7 +42,7 @@ function PatientGroupCard({ group, lang, onNote, statusMut }: {
   onNote: (c: Complaint) => void
   statusMut: any
 }) {
-  const [expanded, setExpanded] = useState(true)
+  const [expanded, setExpanded] = useState(false)
   const latest = group.complaints[0]
   if (!latest) return null
 
