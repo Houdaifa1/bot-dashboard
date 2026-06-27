@@ -36,6 +36,7 @@ export function ClinicPage() {
     address: '',
     timezone: '',
     defaultLanguage: '',
+    notificationPhone: '',
   })
 
   const [dirty, setDirty] = useState(false)
@@ -48,6 +49,7 @@ export function ClinicPage() {
         address: clinic.address ?? '',
         timezone: clinic.timezone,
         defaultLanguage: clinic.defaultLanguage,
+        notificationPhone: (clinic as any).notificationPhone ?? '',
       })
       setDirty(false)
     }
@@ -77,8 +79,9 @@ export function ClinicPage() {
       phone: form.phone,
       address: form.address,
       timezone: form.timezone,
-      defaultLanguage: form.defaultLanguage,
-    })
+      defaultLanguage: form.defaultLanguage as any,
+      notificationPhone: form.notificationPhone || null,
+    } as any)
   }
 
   const handleReset = () => {
@@ -89,6 +92,7 @@ export function ClinicPage() {
         address: clinic.address ?? '',
         timezone: clinic.timezone,
         defaultLanguage: clinic.defaultLanguage,
+        notificationPhone: (clinic as any).notificationPhone ?? '',
       })
       setDirty(false)
     }
@@ -132,13 +136,16 @@ export function ClinicPage() {
           </Field>
 
           <Field
-            label={t(lang, 'clinic_phone')}
-            hint={lang === 'FR' ? 'Format international, ex: +212600000000' : 'International format, e.g. +212600000000'}
+            label={lang === 'FR' ? 'Numéro public de la clinique' : 'Clinic public phone number'}
+            hint={lang === 'FR'
+              ? 'Affiché aux patients dans les messages du bot. Format international, ex: +212600000000'
+              : 'Shown to patients in bot messages. International format, e.g. +212600000000'}
           >
             <input
               className="input h-10"
               value={form.phone}
               onChange={e => set('phone', e.target.value)}
+              placeholder="+212600000000"
               required
             />
           </Field>
@@ -181,7 +188,45 @@ export function ClinicPage() {
               ))}
             </select>
           </Field>
+        </div>
 
+        {/* Staff contact */}
+        <div className="card p-6 space-y-5">
+          <div>
+            <p className="text-xs font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-widest">
+              {lang === 'FR' ? 'Contact du personnel' : 'Staff contact'}
+            </p>
+            <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-1">
+              {lang === 'FR'
+                ? 'Ce numéro reçoit les alertes internes du bot : transferts vers agent humain, plaintes graves, demandes urgentes. Ne pas communiquer aux patients.'
+                : 'This number receives internal bot alerts: human handoffs, high severity complaints, urgent requests. Do not share with patients.'}
+            </p>
+          </div>
+
+          <Field
+            label={lang === 'FR' ? 'Numéro WhatsApp du responsable' : 'Staff WhatsApp number'}
+            hint={lang === 'FR'
+              ? 'Doit être un numéro WhatsApp actif. Format international, ex: +212600000000'
+              : 'Must be an active WhatsApp number. International format, e.g. +212600000000'}
+          >
+            <input
+              className="input h-10"
+              value={form.notificationPhone}
+              onChange={e => set('notificationPhone', e.target.value)}
+              placeholder="+212600000000"
+            />
+          </Field>
+
+          {!form.notificationPhone && (
+            <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+              <span className="text-amber-500 text-xs mt-0.5">⚠</span>
+              <p className="text-xs text-amber-700 dark:text-amber-400">
+                {lang === 'FR'
+                  ? 'Aucun numéro configuré. Les alertes de transfert et les plaintes graves ne seront pas envoyées.'
+                  : 'No number configured. Handoff alerts and high severity complaints will not be sent.'}
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Actions */}
