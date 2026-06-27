@@ -12,11 +12,11 @@ import { BotMessagesPage } from './pages/BotMessages'
 import { SpecialtiesPage } from './pages/Specialties'
 import { DoctorsPage }     from './pages/Doctors'
 import { FaqsPage }        from './pages/Faqs'
-import { AppointmentsPage} from './pages/Appointments'
 import { HandoffPage }     from './pages/Handoff'
 import { CampaignsPage }   from './pages/Campaigns'
 import { CampaignPatientsPage } from './pages/CampaignPatients'
 import { ComplaintsPage } from './pages/Complaints'
+import { BookingRequestsPage } from './pages/BookingRequests'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -64,9 +64,6 @@ function AppRoutes() {
       <Route path="/faqs" element={
         <ProtectedRoute><FaqsPage /></ProtectedRoute>
       } />
-      <Route path="/appointments" element={
-        <ProtectedRoute><AppointmentsPage /></ProtectedRoute>
-      } />
       <Route path="/handoff" element={
         <ProtectedRoute><HandoffPage /></ProtectedRoute>
       } />
@@ -75,6 +72,9 @@ function AppRoutes() {
       } />
       <Route path="/campaigns/:campaignId/patients" element={
         <ProtectedRoute><CampaignPatientsPage /></ProtectedRoute>
+      } />
+      <Route path="/booking-requests" element={
+        <ProtectedRoute><BookingRequestsPage /></ProtectedRoute>
       } />
       <Route path="/complaints" element={
         <ProtectedRoute><ComplaintsPage /></ProtectedRoute>

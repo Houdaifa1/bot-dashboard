@@ -3,8 +3,8 @@ import { useAuth } from '../../store/auth'
 import { t } from '../../i18n'
 import {
   LayoutDashboard, Building2, MessageSquare, Stethoscope,
-  UserRound, HelpCircle, CalendarCheck, PhoneForwarded,
-  Megaphone, AlertTriangle, LogOut, Globe, Menu, X, Sun, Moon
+  UserRound, HelpCircle, PhoneForwarded,
+  Megaphone, AlertTriangle, LogOut, Globe, Menu, X, Sun, Moon, Calendar
 } from 'lucide-react'
 import { useState } from 'react'
 
@@ -19,16 +19,16 @@ export function Shell({ children }: { children: React.ReactNode }) {
   }
 
   const navItems = [
-    { to: '/',             icon: LayoutDashboard, label: t(lang, 'nav_dashboard') },
-    { to: '/clinic',       icon: Building2,       label: t(lang, 'nav_clinic') },
-    { to: '/bot-messages', icon: MessageSquare,   label: t(lang, 'nav_botMessages') },
-    { to: '/specialties',  icon: Stethoscope,     label: t(lang, 'nav_specialties') },
-    { to: '/doctors',      icon: UserRound,       label: t(lang, 'nav_doctors') },
-    { to: '/faqs',         icon: HelpCircle,      label: t(lang, 'nav_faqs') },
-    { to: '/appointments', icon: CalendarCheck,   label: t(lang, 'nav_appointments') },
-    { to: '/handoff',      icon: PhoneForwarded,  label: t(lang, 'nav_handoff') },
-    { to: '/campaigns',    icon: Megaphone,       label: t(lang, 'nav_campaigns') },
-    { to: '/complaints',   icon: AlertTriangle,   label: t(lang, 'nav_complaints') },
+    { to: '/',                  icon: LayoutDashboard, label: t(lang, 'nav_dashboard') },
+    { to: '/clinic',            icon: Building2,       label: t(lang, 'nav_clinic') },
+    { to: '/bot-messages',      icon: MessageSquare,   label: t(lang, 'nav_botMessages') },
+    { to: '/specialties',       icon: Stethoscope,     label: t(lang, 'nav_specialties') },
+    { to: '/doctors',           icon: UserRound,       label: t(lang, 'nav_doctors') },
+    { to: '/faqs',              icon: HelpCircle,      label: t(lang, 'nav_faqs') },
+    { to: '/handoff',           icon: PhoneForwarded,  label: t(lang, 'nav_handoff') },
+    { to: '/campaigns',         icon: Megaphone,       label: t(lang, 'nav_campaigns') },
+    { to: '/booking-requests',  icon: Calendar,        label: t(lang, 'nav_bookingRequests') },
+    { to: '/complaints',        icon: AlertTriangle,   label: t(lang, 'nav_complaints') },
   ]
 
   const sidebar = (

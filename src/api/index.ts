@@ -162,7 +162,7 @@ export const getBookingRequests = (params?: any) =>
   api.get('/api/admin/v1/booking-requests', { params }).then(r => r.data)
 export const getBookingRequest = (id: string) =>
   api.get(`/api/admin/v1/booking-requests/${id}`).then(r => r.data)
-export const confirmBookingRequest = (id: string, data: { appointmentDate: string; appointmentTime: string }) =>
+export const confirmBookingRequest = (id: string, data: { appointmentDate: string; appointmentTime: string; message?: string }) =>
   api.post(`/api/admin/v1/booking-requests/${id}/confirm`, data).then(r => r.data)
-export const rejectBookingRequest = (id: string) =>
-  api.post(`/api/admin/v1/booking-requests/${id}/reject`).then(r => r.data)
+export const rejectBookingRequest = (id: string, data?: { message?: string; language?: string; silent?: boolean }) =>
+  api.post(`/api/admin/v1/booking-requests/${id}/reject`, data ?? {}).then(r => r.data)
