@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Calendar, Clock, UserRound, Phone, RefreshCw, Loader2, CheckCircle2, XCircle } from 'lucide-react'
+import { Calendar, Clock, UserRound, Phone, RefreshCw, Loader2, CheckCircle2, XCircle, FileText } from 'lucide-react'
 import { getBookingRequests, confirmBookingRequest, rejectBookingRequest } from '../api'
 import { useAuth } from '../store/auth'
 import { useToast } from '../store/toast'
@@ -12,6 +12,60 @@ const STATUS_CONFIG: Record<BookingRequestStatus, { label: string; color: string
   PENDING:   { label: 'Pending', color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
   CONFIRMED: { label: 'Confirmed', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' },
   REJECTED:  { label: 'Rejected', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
+}
+
+function ReasonTooltip({ text }: { text: string }) {
+  const [show, setShow] = useState(false)
+  const [flipUp, setFlipUp] = useState(false)
+  const cellRef = useRef<HTMLDivElement>(null)
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+
+  const handleMouseEnter = () => {
+    clearTimeout(timeoutRef.current)
+    timeoutRef.current = setTimeout(() => {
+      if (cellRef.current) {
+        const rect = cellRef.current.getBoundingClientRect()
+        const spaceBelow = window.innerHeight - rect.bottom
+        setFlipUp(spaceBelow < 250)
+      }
+      setShow(true)
+    }, 600)
+  }
+
+  const handleMouseLeave = () => {
+    clearTimeout(timeoutRef.current)
+    setShow(false)
+  }
+
+  return (
+    <div ref={cellRef} className="relative" onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
+      <p className="text-sm text-neutral-700 dark:text-neutral-300 truncate max-w-[220px] cursor-default">
+        {text}
+      </p>
+      {show && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setShow(false)} />
+          <div
+            className={`absolute z-50 left-0 w-80 bg-white dark:bg-neutral-800 rounded-xl shadow-2xl border border-neutral-200 dark:border-neutral-700 p-4 pointer-events-auto animate-in fade-in duration-200 ${
+              flipUp
+                ? 'bottom-full mb-2 slide-in-from-bottom-1'
+                : 'top-full mt-2 slide-in-from-top-1'
+            }`}
+          >
+            <div className="flex items-center gap-2 mb-2 pb-2 border-b border-neutral-100 dark:border-neutral-700">
+              <FileText size={14} className="text-blue-500 shrink-0" />
+              <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide">
+                Reason
+              </span>
+            </div>
+            <p className="text-sm text-neutral-800 dark:text-neutral-200 whitespace-pre-wrap leading-relaxed">
+              {text}
+            </p>
+          </div>
+        </>
+      )}
+    </div>
+  )
 }
 
 function ConfirmModal({ booking, lang, onClose, onConfirm, saving }: {
@@ -46,7 +100,6 @@ function ConfirmModal({ booking, lang, onClose, onConfirm, saving }: {
   return (
     <Modal open={!!booking} onClose={onClose} title={t(lang, 'bookingRequests_confirmTitle')} size="lg">
       <div className="space-y-5">
-        {/* Patient info */}
         <div className="p-4 bg-neutral-50 dark:bg-neutral-800/50 rounded-xl border border-neutral-100 dark:border-neutral-800">
           <div className="flex items-center gap-2.5 mb-1">
             <UserRound size={16} className="text-blue-500" />
@@ -56,14 +109,17 @@ function ConfirmModal({ booking, lang, onClose, onConfirm, saving }: {
             <Phone size={12} /> {booking.campaignPatient?.phone}
           </p>
           {booking.reason && (
-            <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-2.5 bg-white dark:bg-neutral-800 p-3 rounded-lg border border-neutral-200 dark:border-neutral-700">
-              <span className="font-medium text-neutral-700 dark:text-neutral-300">{lang === 'FR' ? 'Motif' : 'Reason'}:</span>
-              <br />{booking.reason}
-            </p>
+            <div className="mt-2.5 bg-white dark:bg-neutral-800 p-3 rounded-lg border border-neutral-200 dark:border-neutral-700">
+              <p className="text-[11px] font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wide mb-1">
+                {lang === 'FR' ? 'Motif' : 'Reason'}
+              </p>
+              <p className="text-sm text-neutral-700 dark:text-neutral-300 whitespace-pre-wrap leading-relaxed">
+                {booking.reason}
+              </p>
+            </div>
           )}
         </div>
 
-        {/* Date & Time */}
         <div className="grid grid-cols-2 gap-4">
           <Field label={t(lang, 'bookingRequests_confirmDate')}>
             <input type="date" className="input h-10" value={appointmentDate} onChange={e => setAppointmentDate(e.target.value)} required min={new Date().toISOString().split('T')[0]} />
@@ -73,7 +129,6 @@ function ConfirmModal({ booking, lang, onClose, onConfirm, saving }: {
           </Field>
         </div>
 
-        {/* Message */}
         <div>
           <Field label={t(lang, 'bookingRequests_confirmMessage')}>
             <textarea className="input w-full min-h-[90px] resize-y" value={customMessage} onChange={e => setCustomMessage(e.target.value)} rows={3} />
@@ -81,7 +136,6 @@ function ConfirmModal({ booking, lang, onClose, onConfirm, saving }: {
           <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-1">{t(lang, 'bookingRequests_confirmMessageHint')}</p>
         </div>
 
-        {/* Actions */}
         <div className="flex justify-end gap-3 pt-2 border-t border-neutral-100 dark:border-neutral-800">
           <button className="btn-outline" onClick={onClose} disabled={saving}>{t(lang, 'cancel')}</button>
           <button className="btn-primary inline-flex items-center gap-2" onClick={handleSubmit} disabled={saving || !appointmentDate || !appointmentTime}>
@@ -117,7 +171,6 @@ function RejectModal({ booking, lang, onClose, onRejectNotify, onRejectSilent, s
   return (
     <Modal open={!!booking} onClose={onClose} title={t(lang, 'bookingRequests_rejectModalTitle')} size="md">
       <div className="space-y-5">
-        {/* Patient info */}
         <div className="p-4 bg-neutral-50 dark:bg-neutral-800/50 rounded-xl border border-neutral-100 dark:border-neutral-800">
           <div className="flex items-center gap-2.5">
             <UserRound size={16} className="text-red-500" />
@@ -128,7 +181,6 @@ function RejectModal({ booking, lang, onClose, onRejectNotify, onRejectSilent, s
           </p>
         </div>
 
-        {/* Mode selection */}
         <div className="flex gap-3">
           <button
             className={`flex-1 py-2.5 px-4 rounded-xl text-sm font-medium transition-all border ${
@@ -152,7 +204,6 @@ function RejectModal({ booking, lang, onClose, onRejectNotify, onRejectSilent, s
           </button>
         </div>
 
-        {/* Notify mode */}
         {mode === 'notify' && (
           <>
             <div className="flex gap-2">
@@ -183,7 +234,6 @@ function RejectModal({ booking, lang, onClose, onRejectNotify, onRejectSilent, s
           </>
         )}
 
-        {/* Silent mode */}
         {mode === 'silent' && (
           <div className="p-4 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/50 rounded-xl">
             <p className="text-sm text-amber-700 dark:text-amber-400">
@@ -194,7 +244,6 @@ function RejectModal({ booking, lang, onClose, onRejectNotify, onRejectSilent, s
           </div>
         )}
 
-        {/* Actions */}
         <div className="flex justify-end gap-3 pt-2 border-t border-neutral-100 dark:border-neutral-800">
           <button className="btn-outline" onClick={onClose} disabled={saving}>{t(lang, 'cancel')}</button>
           {mode === 'notify' ? (
@@ -211,15 +260,6 @@ function RejectModal({ booking, lang, onClose, onRejectNotify, onRejectSilent, s
         </div>
       </div>
     </Modal>
-  )
-}
-
-function ReasonCell({ reason }: { reason: string | null | undefined }) {
-  if (!reason) return <span className="text-neutral-400">—</span>
-  return (
-    <div className="max-w-[300px]">
-      <p className="text-sm text-neutral-700 dark:text-neutral-300 whitespace-pre-wrap leading-relaxed">{reason}</p>
-    </div>
   )
 }
 
@@ -297,7 +337,6 @@ export function BookingRequestsPage() {
     <div className="max-w-6xl">
       <PageHeader title={t(lang, 'bookingRequests_title')} subtitle={t(lang, 'bookingRequests_subtitle')} />
 
-      {/* Filter bar */}
       <div className="card p-4 mb-6 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <label className="text-xs font-medium text-neutral-500">{t(lang, 'bookingRequests_filterStatus')}</label>
@@ -313,7 +352,6 @@ export function BookingRequestsPage() {
         </button>
       </div>
 
-      {/* Table */}
       {items.length === 0 ? (
         <Empty message={t(lang, 'bookingRequests_empty')} />
       ) : (
@@ -340,7 +378,11 @@ export function BookingRequestsPage() {
                       <p className="text-xs text-neutral-400 mt-0.5">{booking.campaignPatient?.phone}</p>
                     </td>
                     <td className="px-5 py-4 max-w-[250px]">
-                      <ReasonCell reason={booking.reason} />
+                      {booking.reason ? (
+                        <ReasonTooltip text={booking.reason} />
+                      ) : (
+                        <span className="text-neutral-400">—</span>
+                      )}
                     </td>
                     <td className="px-5 py-4 text-neutral-600">{booking.preferredDoctor || booking.preferredSpecialty || '—'}</td>
                     <td className="px-5 py-4 text-neutral-600">{booking.preferredDateRange || '—'}</td>
@@ -374,7 +416,6 @@ export function BookingRequestsPage() {
         </div>
       )}
 
-      {/* Confirm modal */}
       {confirmTarget && (
         <ConfirmModal
           booking={confirmTarget}
@@ -385,7 +426,6 @@ export function BookingRequestsPage() {
         />
       )}
 
-      {/* Reject modal */}
       {rejectTarget && (
         <RejectModal
           booking={rejectTarget}

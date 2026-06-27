@@ -102,13 +102,10 @@ function ConversationPanel({
     return () => document.removeEventListener('keydown', handler)
   }, [onClose])
 
-  const [lastSentTs, setLastSentTs] = useState<number | null>(null)
-
   const sendMut = useMutation({
     mutationFn: (msg: string) => sendHandoffMessage(session.phone, msg),
     onSuccess: () => {
       setDraft('')
-      setLastSentTs(Date.now())
       qc.invalidateQueries({ queryKey: ['handoff-sessions'] })
     },
     onError: (e: any) => toast(e?.response?.data?.message ?? 'Send failed', 'error'),
