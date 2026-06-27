@@ -18,7 +18,7 @@ interface AuthStore {
 
 const AuthContext = createContext<AuthStore | null>(null)
 const savedTheme = localStorage.getItem('theme')
-if (savedTheme === 'dark') {
+if (savedTheme !== 'light') {
     document.documentElement.classList.add('dark')
 }
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -31,7 +31,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         () => (localStorage.getItem('lang') as Lang) || 'FR'
     )
     const [theme, setThemeState] = useState<Theme>(
-        () => (localStorage.getItem('theme') as Theme) || 'light'
+        () => (localStorage.getItem('theme') as Theme) || 'dark'
     )
 
     useEffect(() => {

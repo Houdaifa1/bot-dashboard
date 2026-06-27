@@ -166,3 +166,5 @@ export const confirmBookingRequest = (id: string, data: { appointmentDate: strin
   api.post(`/api/admin/v1/booking-requests/${id}/confirm`, data).then(r => r.data)
 export const rejectBookingRequest = (id: string, data?: { message?: string; language?: string; silent?: boolean }) =>
   api.post(`/api/admin/v1/booking-requests/${id}/reject`, data ?? {}).then(r => r.data)
+export const deleteBookingRequest = (id: string) =>
+  api.delete(`/api/admin/v1/booking-requests/${id}`).then(r => r.data)

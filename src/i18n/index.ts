@@ -230,7 +230,9 @@ const fr = {
   bookingRequests_confirmTime: 'Heure du rendez-vous',
   bookingRequests_confirmed: 'Rendez-vous confirmé avec succès',
   bookingRequests_rejected: 'Demande rejetée',
-  bookingRequests_pending: 'En attente',
+  bookingRequests_status_pending: 'En attente',
+  bookingRequests_status_confirmed: 'Confirmé',
+  bookingRequests_status_rejected: 'Rejeté',
   bookingRequests_all: 'Tous',
   bookingRequests_filterStatus: 'Filtrer par statut',
   bookingRequests_showFullReason: 'Voir le motif complet',
@@ -253,6 +255,10 @@ const fr = {
   bookingRequests_rejectedWithMessage: 'Demande rejetée et patient notifié',
   bookingRequests_rejectedSilently: 'Demande rejetée',
   bookingRequests_confirmedWithMessage: 'Rendez-vous confirmé et patient notifié',
+  bookingRequests_delete: 'Supprimer',
+  bookingRequests_deleteTitle: 'Confirmer la suppression',
+  bookingRequests_deleteBody: 'Vous êtes sur le point de supprimer définitivement cette demande de rendez-vous. Cette action est irréversible.',
+  bookingRequests_deleted: 'Demande supprimée avec succès',
 }
 
 const en: typeof fr = {
@@ -470,7 +476,9 @@ const en: typeof fr = {
   bookingRequests_confirmTime: 'Appointment time',
   bookingRequests_confirmed: 'Appointment confirmed successfully',
   bookingRequests_rejected: 'Request rejected',
-  bookingRequests_pending: 'Pending',
+  bookingRequests_status_pending: 'Pending',
+  bookingRequests_status_confirmed: 'Confirmed',
+  bookingRequests_status_rejected: 'Rejected',
   bookingRequests_all: 'All',
   bookingRequests_filterStatus: 'Filter by status',
   bookingRequests_showFullReason: 'View full reason',
@@ -493,6 +501,10 @@ const en: typeof fr = {
   bookingRequests_rejectedWithMessage: 'Request rejected and patient notified',
   bookingRequests_rejectedSilently: 'Request rejected',
   bookingRequests_confirmedWithMessage: 'Appointment confirmed and patient notified',
+  bookingRequests_delete: 'Delete',
+  bookingRequests_deleteTitle: 'Confirm Deletion',
+  bookingRequests_deleteBody: 'You are about to permanently delete this booking request. This action cannot be undone.',
+  bookingRequests_deleted: 'Booking request deleted successfully',
 }
 
 const translations = { FR: fr, EN: en }
