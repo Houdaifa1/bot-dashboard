@@ -2,10 +2,10 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  Plus, Play, Pause, Square, CalendarClock, Users, MessageSquare,
+  Plus, Play, Square, CalendarClock, Users, MessageSquare,
   AlertTriangle, CheckCircle2, XCircle, Loader2, Ban, ChevronRight, Trash2, Eye, X, ChevronDown, ChevronUp,
 } from 'lucide-react'
-import { getCampaigns, createCampaign, launchCampaign, pauseCampaign, resumeCampaign, stopCampaign, cancelCampaignSchedule, deleteCampaign, previewCampaign, previewCampaignFilters, getCampaignTargetingOptions } from '../api'
+import { getCampaigns, createCampaign, launchCampaign, stopCampaign, cancelCampaignSchedule, deleteCampaign, previewCampaign, previewCampaignFilters, getCampaignTargetingOptions } from '../api'
 import { useAuth } from '../store/auth'
 import { useToast } from '../store/toast'
 import { PageHeader, PageLoader, Modal, ConfirmDialog, Empty, Field } from '../components/ui'
@@ -63,14 +63,19 @@ function ChipMultiSelect({ options, selected, onToggle, getKey, getLabel, emptyM
 // CIN/passport, and phone number — fields where staff already know the exact
 // value to type and there's no API-provided list to pick from.
 
-function TagInput({ value, onChange, placeholder }: {
+function TagInput({ value, onChange, placeholder, prefix }: {
   value: string[]; onChange: (v: string[]) => void; placeholder: string
+  // Fixed prefix shown before the input (e.g. "+212") — staff only type the
+  // rest, the prefix is prepended automatically when the tag is added.
+  prefix?: string
 }) {
   const [draft, setDraft] = useState('')
 
   const addTag = () => {
-    const v = draft.trim()
-    if (v && !value.includes(v)) onChange([...value, v])
+    const typed = draft.trim()
+    if (!typed) return
+    const v = prefix ? prefix + typed.replace(/\D/g, '').replace(/^0+/, '') : typed
+    if (v !== prefix && !value.includes(v)) onChange([...value, v])
     setDraft('')
   }
 
@@ -88,16 +93,30 @@ function TagInput({ value, onChange, placeholder }: {
           ))}
         </div>
       )}
-      <input
-        className="input h-10"
-        value={draft}
-        onChange={e => setDraft(e.target.value)}
-        onKeyDown={e => {
-          if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag() }
-        }}
-        onBlur={addTag}
-        placeholder={placeholder}
-      />
+      <div className="flex gap-2">
+        {prefix && (
+          <span className="input h-10 flex items-center justify-center px-3 shrink-0 w-16 font-medium text-neutral-500 dark:text-neutral-400">
+            {prefix}
+          </span>
+        )}
+        <input
+          className="input h-10 flex-1 min-w-0"
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag() }
+          }}
+          placeholder={placeholder}
+        />
+        <button
+          type="button"
+          onClick={addTag}
+          className="btn-outline h-10 px-3 shrink-0"
+          title={placeholder}
+        >
+          <Plus size={16} />
+        </button>
+      </div>
     </div>
   )
 }
@@ -224,7 +243,7 @@ function CreateCampaignModal({
               ? "Reçoit plusieurs patients à la fois. Tapez le motif exact tel qu'il apparaît dans votre dossier, ex: Consultation cardiologie."
               : 'Reaches many patients at once. Type the exact reason as it appears in your record, e.g. Consultation cardiologie.'}
           >
-            <TagInput value={filterMotifs} onChange={setFilterMotifs} placeholder={lang === 'FR' ? 'ex: Consultation cardiologie, puis Entrée' : 'e.g. Consultation cardiologie, then Enter'} />
+            <TagInput value={filterMotifs} onChange={setFilterMotifs} placeholder={lang === 'FR' ? 'ex: Consultation cardiologie' : 'e.g. Consultation cardiologie'} />
           </Field>
 
           <Field
@@ -233,16 +252,16 @@ function CreateCampaignModal({
               ? 'Pour cibler un ou plusieurs patients précis que vous connaissez déjà.'
               : 'To target one or more specific patients you already know.'}
           >
-            <TagInput value={filterCinPassports} onChange={setFilterCinPassports} placeholder={lang === 'FR' ? 'ex: CIN1002, puis Entrée' : 'e.g. CIN1002, then Enter'} />
+            <TagInput value={filterCinPassports} onChange={setFilterCinPassports} placeholder="CIN1002" />
           </Field>
 
           <Field
             label={lang === 'FR' ? '📱 Numéro de téléphone' : '📱 Phone number'}
             hint={lang === 'FR'
-              ? 'Format international avec le +, ex: +212666666666.'
-              : 'International format with the +, e.g. +212666666666.'}
+              ? "L'indicatif +212 est ajouté automatiquement, tapez juste le numéro."
+              : 'The +212 country code is added automatically, just type the number.'}
           >
-            <TagInput value={filterPhoneNumbers} onChange={setFilterPhoneNumbers} placeholder="+212666666666" />
+            <TagInput value={filterPhoneNumbers} onChange={setFilterPhoneNumbers} placeholder="666666666" prefix="+212" />
           </Field>
 
           {/* Live match feedback */}
@@ -451,18 +470,6 @@ export function CampaignsPage() {
     onError: (err: any) => toast(lang === 'FR' ? 'Erreur lors du lancement' : (err?.response?.data?.message ?? 'Failed to launch campaign'), 'error'),
   })
 
-  const pauseMut = useMutation({
-    mutationFn: (id: string) => pauseCampaign(id),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['campaigns'] }); toast(lang === 'FR' ? 'Campagne en pause' : 'Campaign paused', 'success') },
-    onError: (err: any) => toast(lang === 'FR' ? 'Erreur lors de la pause' : (err?.response?.data?.message ?? 'Failed to pause campaign'), 'error'),
-  })
-
-  const resumeMut = useMutation({
-    mutationFn: (id: string) => resumeCampaign(id),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['campaigns'] }); toast(lang === 'FR' ? 'Campagne reprise' : 'Campaign resumed', 'success') },
-    onError: (err: any) => toast(lang === 'FR' ? 'Erreur lors de la reprise' : (err?.response?.data?.message ?? 'Failed to resume campaign'), 'error'),
-  })
-
   const stopMut = useMutation({
     mutationFn: (id: string) => stopCampaign(id),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['campaigns'] }); toast(lang === 'FR' ? 'Campagne arrêtée' : 'Campaign stopped', 'success') },
@@ -556,25 +563,10 @@ export function CampaignsPage() {
                         </button>
                       </>
                     )}
-                    {c.status === 'RUNNING' && (
-                      <>
-                        <button className="btn-outline h-8 text-xs" onClick={() => pauseMut.mutate(c.id)} disabled={pauseMut.isPending}>
-                          <Pause size={12} className="mr-1" />{lang === 'FR' ? 'Pause' : 'Pause'}
-                        </button>
-                        <button className="btn-outline h-8 text-xs text-red-600 hover:text-red-700 dark:text-red-400" onClick={() => stopMut.mutate(c.id)} disabled={stopMut.isPending}>
-                          <Square size={12} className="mr-1" />{lang === 'FR' ? 'Arrêter' : 'Stop'}
-                        </button>
-                      </>
-                    )}
-                    {c.status === 'PAUSED' && (
-                      <>
-                        <button className="btn-primary h-8 text-xs" onClick={() => resumeMut.mutate(c.id)} disabled={resumeMut.isPending}>
-                          <Play size={12} className="mr-1" />{lang === 'FR' ? 'Reprendre' : 'Resume'}
-                        </button>
-                        <button className="btn-outline h-8 text-xs text-red-600 hover:text-red-700 dark:text-red-400" onClick={() => stopMut.mutate(c.id)} disabled={stopMut.isPending}>
-                          <Square size={12} className="mr-1" />{lang === 'FR' ? 'Arrêter' : 'Stop'}
-                        </button>
-                      </>
+                    {(c.status === 'RUNNING' || c.status === 'PAUSED') && (
+                      <button className="btn-outline h-8 text-xs text-red-600 hover:text-red-700 dark:text-red-400" onClick={() => stopMut.mutate(c.id)} disabled={stopMut.isPending}>
+                        <Square size={12} className="mr-1" />{lang === 'FR' ? 'Arrêter' : 'Stop'}
+                      </button>
                     )}
                     {/* Delete button — shown on DRAFT, STOPPED, COMPLETED, SCHEDULED */}
                     {(c.status === 'DRAFT' || c.status === 'STOPPED' || c.status === 'COMPLETED' || c.status === 'SCHEDULED') && (

@@ -123,10 +123,6 @@ export const updateCampaign = (id: string, data: any) =>
   api.patch(`/api/admin/v1/campaigns/${id}`, data).then(r => r.data)
 export const launchCampaign = (id: string) =>
   api.post(`/api/admin/v1/campaigns/${id}/launch`).then(r => r.data)
-export const pauseCampaign = (id: string) =>
-  api.post(`/api/admin/v1/campaigns/${id}/pause`).then(r => r.data)
-export const resumeCampaign = (id: string) =>
-  api.post(`/api/admin/v1/campaigns/${id}/resume`).then(r => r.data)
 export const stopCampaign = (id: string) =>
   api.post(`/api/admin/v1/campaigns/${id}/stop`).then(r => r.data)
 export const cancelCampaignSchedule = (id: string) =>
