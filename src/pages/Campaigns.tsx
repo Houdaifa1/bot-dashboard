@@ -3,9 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Plus, Play, Pause, Square, CalendarClock, Users, MessageSquare,
-  AlertTriangle, CheckCircle2, XCircle, Loader2, Ban, ChevronRight, Trash2, Search, Eye,
+  AlertTriangle, CheckCircle2, XCircle, Loader2, Ban, ChevronRight, Trash2, Eye, X, ChevronDown, ChevronUp,
 } from 'lucide-react'
-import { getCampaigns, createCampaign, launchCampaign, pauseCampaign, resumeCampaign, stopCampaign, cancelCampaignSchedule, deleteCampaign, previewCampaign, previewCampaignFilters } from '../api'
+import { getCampaigns, createCampaign, launchCampaign, pauseCampaign, resumeCampaign, stopCampaign, cancelCampaignSchedule, deleteCampaign, previewCampaign, previewCampaignFilters, getCampaignTargetingOptions } from '../api'
 import { useAuth } from '../store/auth'
 import { useToast } from '../store/toast'
 import { PageHeader, PageLoader, Modal, ConfirmDialog, Empty, Field } from '../components/ui'
@@ -22,6 +22,86 @@ const STATUS_STYLES: Record<CampaignStatus, { bg: string; text: string; label: s
   STOPPED:   { bg: 'bg-red-100 dark:bg-red-900/30', text: 'text-red-700 dark:text-red-300', label: 'Stopped' },
 }
 
+// ── Chip Multi-Select ────────────────────────────────────────────────────────
+// Toggleable chip list for picking one or more items from a live-loaded API
+// list. Used for specialties and doctors so staff pick exact values instead
+// of typing free text.
+
+function ChipMultiSelect({ options, selected, onToggle, getKey, getLabel, emptyMessage }: {
+  options: any[]; selected: string[]; onToggle: (label: string) => void
+  getKey: (o: any) => string | number; getLabel: (o: any) => string; emptyMessage: string
+}) {
+  if (options.length === 0) {
+    return <p className="text-xs text-neutral-400 dark:text-neutral-500 italic">{emptyMessage}</p>
+  }
+  return (
+    <div className="flex flex-wrap gap-2">
+      {options.map(o => {
+        const label = getLabel(o)
+        const active = selected.includes(label)
+        return (
+          <button
+            key={getKey(o)}
+            type="button"
+            onClick={() => onToggle(label)}
+            className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+              active
+                ? 'bg-blue-600 border-blue-600 text-white'
+                : 'bg-transparent border-neutral-300 dark:border-neutral-600 text-neutral-600 dark:text-neutral-300 hover:border-blue-400'
+            }`}
+          >
+            {label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+// ── Tag Input ────────────────────────────────────────────────────────────────
+// Type a value, press Enter (or comma) to add it as a chip. Used for motif,
+// CIN/passport, and phone number — fields where staff already know the exact
+// value to type and there's no API-provided list to pick from.
+
+function TagInput({ value, onChange, placeholder }: {
+  value: string[]; onChange: (v: string[]) => void; placeholder: string
+}) {
+  const [draft, setDraft] = useState('')
+
+  const addTag = () => {
+    const v = draft.trim()
+    if (v && !value.includes(v)) onChange([...value, v])
+    setDraft('')
+  }
+
+  return (
+    <div>
+      {value.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-2">
+          {value.map(v => (
+            <span key={v} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-600 text-white">
+              {v}
+              <button type="button" onClick={() => onChange(value.filter(x => x !== v))} className="hover:opacity-70">
+                <X size={12} />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      <input
+        className="input h-10"
+        value={draft}
+        onChange={e => setDraft(e.target.value)}
+        onKeyDown={e => {
+          if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag() }
+        }}
+        onBlur={addTag}
+        placeholder={placeholder}
+      />
+    </div>
+  )
+}
+
 // ── Create Modal ─────────────────────────────────────────────────────────────
 
 const SEND_NOW = 'send_now'
@@ -33,90 +113,136 @@ function CreateCampaignModal({
   open: boolean; onClose: () => void; onSave: (data: any) => void; saving: boolean; lang: string
 }) {
   const [name, setName] = useState('')
-  const [filterMotif, setFilterMotif] = useState('')
+  const [filterMotifs, setFilterMotifs] = useState<string[]>([])
+  const [filterCinPassports, setFilterCinPassports] = useState<string[]>([])
+  const [filterPhoneNumbers, setFilterPhoneNumbers] = useState<string[]>([])
   const [showRefine, setShowRefine] = useState(false)
-  const [filterDoctor, setFilterDoctor] = useState('')
+  const [filterDoctors, setFilterDoctors] = useState<string[]>([])
   const [filterDateFrom, setFilterDateFrom] = useState('')
   const [filterDateTo, setFilterDateTo] = useState('')
+  const [onlyVerifiedNumbers, setOnlyVerifiedNumbers] = useState(true)
   const [scheduledStartAt, setScheduledStartAt] = useState('')
   const [scheduleType, setScheduleType] = useState(SEND_NOW)
 
   // Reset the form every time the modal is (re)opened.
   useEffect(() => {
     if (open) {
-      setName(''); setFilterMotif(''); setShowRefine(false); setFilterDoctor('')
-      setFilterDateFrom(''); setFilterDateTo(''); setScheduledStartAt(''); setScheduleType(SEND_NOW)
+      setName('')
+      setFilterMotifs([]); setFilterCinPassports([]); setFilterPhoneNumbers([])
+      setShowRefine(false); setFilterDoctors([])
+      setFilterDateFrom(''); setFilterDateTo(''); setOnlyVerifiedNumbers(true)
+      setScheduledStartAt(''); setScheduleType(SEND_NOW)
     }
   }, [open])
 
-  // ── Live "how many patients match" preview, debounced on filterMotif/refinements ──
+  // Exact doctor list from ClinOps, so staff pick from the real list instead
+  // of typing free text (no way to get this wrong).
+  const { data: options } = useQuery({
+    queryKey: ['campaign-targeting-options'],
+    queryFn: () => getCampaignTargetingOptions(),
+    enabled: open,
+  })
+
+  const toggleDoctor = (label: string) => {
+    setFilterDoctors(prev => prev.includes(label) ? prev.filter(d => d !== label) : [...prev, label])
+  }
+
+  const hasTarget = filterMotifs.length > 0 || filterCinPassports.length > 0 || filterPhoneNumbers.length > 0
+
+  // ── Live "how many patients match" preview, debounced on selection changes ──
   const previewMut = useMutation({
     mutationFn: (filters: any) => previewCampaignFilters(filters),
   })
 
   useEffect(() => {
-    if (!filterMotif.trim()) {
+    if (!hasTarget) {
       previewMut.reset()
       return
     }
     const t = setTimeout(() => {
       previewMut.mutate({
-        filterMotif: filterMotif.trim(),
-        ...(filterDoctor.trim() ? { filterDoctor: filterDoctor.trim() } : {}),
+        ...(filterMotifs.length ? { filterMotifs } : {}),
+        ...(filterCinPassports.length ? { filterCinPassports } : {}),
+        ...(filterPhoneNumbers.length ? { filterPhoneNumbers } : {}),
+        onlyVerifiedNumbers,
+        ...(filterDoctors.length ? { filterDoctors } : {}),
         ...(filterDateFrom ? { filterDateFrom } : {}),
         ...(filterDateTo ? { filterDateTo } : {}),
       })
-    }, 500)
+    }, 400)
     return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterMotif, filterDoctor, filterDateFrom, filterDateTo])
+  }, [filterMotifs, filterCinPassports, filterPhoneNumbers, onlyVerifiedNumbers, filterDoctors, filterDateFrom, filterDateTo])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    const payload: any = { name, filterMotif: filterMotif.trim() }
+    const payload: any = { name, onlyVerifiedNumbers }
 
-    if (filterDoctor.trim()) payload.filterDoctor = filterDoctor.trim()
+    if (filterMotifs.length) payload.filterMotifs = filterMotifs
+    if (filterCinPassports.length) payload.filterCinPassports = filterCinPassports
+    if (filterPhoneNumbers.length) payload.filterPhoneNumbers = filterPhoneNumbers
+    if (filterDoctors.length) payload.filterDoctors = filterDoctors
     if (filterDateFrom) payload.filterDateFrom = filterDateFrom
     if (filterDateTo) payload.filterDateTo = filterDateTo
 
     if (scheduleType === SCHEDULE_LATER && scheduledStartAt) {
       payload.scheduledStartAt = new Date(scheduledStartAt).toISOString()
     } else {
-      // FORCE 0 HERE SO THE BACKEND KNOWS IT'S IMMEDIATE
+      // Forces the backend to treat this as immediate.
       payload.delayHours = 0
     }
 
     onSave(payload)
   }
 
-  const canSubmit = name.trim().length >= 2 && filterMotif.trim().length > 0
+  const canSubmit = name.trim().length >= 2 && hasTarget
 
   return (
     <Modal open={open} onClose={onClose} title={lang === 'FR' ? 'Nouvelle campagne' : 'New campaign'} size="md">
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Name — simple, just a name */}
+        {/* Name: simple, just a name */}
         <Field label={lang === 'FR' ? 'Nom de la campagne' : 'Campaign name'}>
           <input className="input h-10" value={name} onChange={e => setName(e.target.value)} required minLength={2} maxLength={100} placeholder="ex: Suivi post-consultation juin" />
         </Field>
 
-        {/* Motif — the ONE real targeting field the API supports */}
-        <div className="border border-neutral-200 dark:border-neutral-700 rounded-lg p-4 space-y-3">
-          <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">
-            {lang === 'FR' ? '🎯 Motif de visite à cibler' : '🎯 Visit reason to target'}
-          </p>
+        {/* Who to reach: the 3 real ways the system can find patients */}
+        <div className="border border-neutral-200 dark:border-neutral-700 rounded-lg p-4 space-y-4">
+          <div>
+            <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">
+              {lang === 'FR' ? '🎯 Qui voulez-vous contacter ?' : '🎯 Who do you want to reach?'}
+            </p>
+            <p className="text-xs text-neutral-400 dark:text-neutral-500 mt-1">
+              {lang === 'FR'
+                ? "Utilisez au moins une des 3 méthodes ci-dessous. Vous pouvez en combiner plusieurs."
+                : 'Use at least one of the 3 methods below. You can combine more than one.'}
+            </p>
+          </div>
+
           <Field
-            label={lang === 'FR' ? 'Motif' : 'Motif'}
+            label={lang === 'FR' ? '🩺 Motif de visite' : '🩺 Visit reason'}
             hint={lang === 'FR'
-              ? 'Le mot-clé du motif de consultation, ex: "cardiologie", "suivi diabète"'
-              : 'Keyword from the consultation reason, e.g. "cardiologie", "diabetes follow-up"'}
+              ? "Reçoit plusieurs patients à la fois. Tapez le motif exact tel qu'il apparaît dans votre dossier, ex: Consultation cardiologie."
+              : 'Reaches many patients at once. Type the exact reason as it appears in your record, e.g. Consultation cardiologie.'}
           >
-            <input
-              className="input h-10"
-              value={filterMotif}
-              onChange={e => setFilterMotif(e.target.value)}
-              required
-              placeholder={lang === 'FR' ? 'ex: cardiologie' : 'e.g. cardiologie'}
-            />
+            <TagInput value={filterMotifs} onChange={setFilterMotifs} placeholder={lang === 'FR' ? 'ex: Consultation cardiologie, puis Entrée' : 'e.g. Consultation cardiologie, then Enter'} />
+          </Field>
+
+          <Field
+            label={lang === 'FR' ? '🪪 Numéro CIN / Passeport' : '🪪 CIN / Passport number'}
+            hint={lang === 'FR'
+              ? 'Pour cibler un ou plusieurs patients précis que vous connaissez déjà.'
+              : 'To target one or more specific patients you already know.'}
+          >
+            <TagInput value={filterCinPassports} onChange={setFilterCinPassports} placeholder={lang === 'FR' ? 'ex: CIN1002, puis Entrée' : 'e.g. CIN1002, then Enter'} />
+          </Field>
+
+          <Field
+            label={lang === 'FR' ? '📱 Numéro de téléphone' : '📱 Phone number'}
+            hint={lang === 'FR'
+              ? 'Format international avec le +, ex: +212666666666.'
+              : 'International format with the +, e.g. +212666666666.'}
+          >
+            <TagInput value={filterPhoneNumbers} onChange={setFilterPhoneNumbers} placeholder="+212666666666" />
           </Field>
 
           {/* Live match feedback */}
@@ -131,7 +257,7 @@ function CreateCampaignModal({
                 </span>
               ) : (
                 <span className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400 font-medium">
-                  <AlertTriangle size={12} /> {lang === 'FR' ? 'Aucun patient trouvé pour ce motif' : 'No patients found for this motif'}
+                  <AlertTriangle size={12} /> {lang === 'FR' ? 'Aucun patient trouvé pour cette sélection' : 'No patients found for this selection'}
                 </span>
               )
             )}
@@ -141,21 +267,35 @@ function CreateCampaignModal({
               </span>
             )}
           </div>
+        </div>
 
-          {/* Optional local refinements */}
-          {!showRefine ? (
-            <button type="button" className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1" onClick={() => setShowRefine(true)}>
-              <Search size={12} /> {lang === 'FR' ? 'Affiner (médecin, dates)' : 'Refine further (doctor, dates)'}
-            </button>
-          ) : (
-            <div className="space-y-3 pt-1 border-t border-neutral-100 dark:border-neutral-800">
-              <p className="text-xs text-neutral-400 dark:text-neutral-500 pt-2">
+        {/* Optional local refinements */}
+        <div className="border border-neutral-200 dark:border-neutral-700 rounded-lg p-4 space-y-3">
+          <button
+            type="button"
+            className="flex items-center justify-between w-full text-sm font-medium text-neutral-600 dark:text-neutral-400"
+            onClick={() => setShowRefine(v => !v)}
+          >
+            <span>{lang === 'FR' ? '🔍 Affiner (facultatif)' : '🔍 Narrow it down (optional)'}</span>
+            {showRefine ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          </button>
+
+          {showRefine && (
+            <div className="space-y-3 pt-1">
+              <p className="text-xs text-neutral-400 dark:text-neutral-500">
                 {lang === 'FR'
-                  ? 'Ces champs ne font que réduire la liste des patients déjà trouvés par le motif ci-dessus — ils ne ciblent jamais de patients seuls.'
-                  : 'These only narrow down the patients already matched by the motif above — they never target patients on their own.'}
+                  ? 'Ces options réduisent la liste des patients déjà trouvés ci-dessus. Elles ne ciblent jamais de patients seules.'
+                  : 'These options narrow down the patients already matched above. They never target patients on their own.'}
               </p>
-              <Field label={lang === 'FR' ? 'Médecin (nom exact)' : 'Doctor (exact name)'}>
-                <input className="input h-10" value={filterDoctor} onChange={e => setFilterDoctor(e.target.value)} placeholder="DR Ahmed BENALI" />
+              <Field label={lang === 'FR' ? 'Médecins' : 'Doctors'}>
+                <ChipMultiSelect
+                  options={options?.doctors ?? []}
+                  selected={filterDoctors}
+                  onToggle={toggleDoctor}
+                  getKey={d => d.doctorId}
+                  getLabel={d => d.doctorLabel}
+                  emptyMessage={lang === 'FR' ? 'Aucun médecin disponible' : 'No doctors available'}
+                />
               </Field>
               <div className="grid grid-cols-2 gap-4">
                 <Field label={lang === 'FR' ? 'Visite du' : 'Visit from'}>
@@ -165,11 +305,18 @@ function CreateCampaignModal({
                   <input type="date" className="input h-10" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} />
                 </Field>
               </div>
+              <label className="flex items-center gap-2 cursor-pointer pt-1">
+                <input type="checkbox" checked={onlyVerifiedNumbers} onChange={e => setOnlyVerifiedNumbers(e.target.checked)} className="accent-blue-600 h-4 w-4" />
+                <span className="text-sm">
+                  {lang === 'FR' ? 'Envoyer seulement aux numéros vérifiés' : 'Only send to verified phone numbers'}
+                  <span className="text-neutral-400"> ({lang === 'FR' ? 'recommandé' : 'recommended'})</span>
+                </span>
+              </label>
             </div>
           )}
         </div>
 
-        {/* Schedule — simple choice */}
+        {/* Schedule: simple choice */}
         <div className="border border-neutral-200 dark:border-neutral-700 rounded-lg p-4 space-y-3">
           <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">
             {lang === 'FR' ? '⏰ Envoi' : '⏰ Send'}
@@ -237,7 +384,7 @@ function PreviewCampaignModal({ campaign, onClose, lang }: { campaign: Campaign 
   })
 
   return (
-    <Modal open={!!campaign} onClose={onClose} title={lang === 'FR' ? `Aperçu — ${campaign?.name ?? ''}` : `Preview — ${campaign?.name ?? ''}`} size="md">
+    <Modal open={!!campaign} onClose={onClose} title={lang === 'FR' ? `Aperçu : ${campaign?.name ?? ''}` : `Preview: ${campaign?.name ?? ''}`} size="md">
       {isLoading && <div className="flex justify-center py-8"><Loader2 size={20} className="animate-spin text-neutral-400" /></div>}
       {isError && <p className="text-sm text-red-600 dark:text-red-400">{lang === 'FR' ? "Erreur lors de l'aperçu" : 'Failed to load preview'}</p>}
       {data && (
@@ -451,8 +598,10 @@ export function CampaignsPage() {
 
                 {/* Filters display */}
                 <div className="flex flex-wrap gap-2 text-xs text-neutral-500 dark:text-neutral-400">
-                  {c.filterDoctor && <span>👨‍⚕️ {c.filterDoctor}</span>}
-                  {c.filterMotif && <span>📋 {c.filterMotif}</span>}
+                  {c.filterMotifs?.length > 0 && <span>🩺 {c.filterMotifs.join(', ')}</span>}
+                  {c.filterCinPassports?.length > 0 && <span>🪪 {c.filterCinPassports.join(', ')}</span>}
+                  {c.filterPhoneNumbers?.length > 0 && <span>📱 {c.filterPhoneNumbers.join(', ')}</span>}
+                  {c.filterDoctors?.length > 0 && <span>👨‍⚕️ {c.filterDoctors.join(', ')}</span>}
                   {c.filterDateFrom && <span>📅 {new Date(c.filterDateFrom).toLocaleDateString(lang === 'FR' ? 'fr-MA' : 'en-GB')}</span>}
                   {c.filterDateTo && <span>→ {new Date(c.filterDateTo).toLocaleDateString(lang === 'FR' ? 'fr-MA' : 'en-GB')}</span>}
                   {c.delayHours && <span>⏱ {c.delayHours}h delay</span>}

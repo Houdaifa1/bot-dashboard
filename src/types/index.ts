@@ -69,7 +69,8 @@ export interface Campaign {
   id: string; clinicId: string; name: string; status: CampaignStatus;
   scheduledStartAt?: string | null;
   filterDateFrom?: string | null; filterDateTo?: string | null;
-  filterDoctor?: string | null; filterMotif?: string | null;
+  filterDoctors: string[]; filterMotifs: string[];
+  filterCinPassports: string[]; filterPhoneNumbers: string[]; onlyVerifiedNumbers: boolean;
   notificationPhone?: string | null; delayHours?: number | null;
   reminderCount?: number | null; reminderIntervalHours?: number | null;
   aiMaxTurns?: number | null;

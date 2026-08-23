@@ -135,8 +135,16 @@ export const deleteCampaign = (id: string) =>
   api.delete(`/api/admin/v1/campaigns/${id}`).then(r => r.data)
 export const previewCampaign = (id: string) =>
   api.get(`/api/admin/v1/campaigns/${id}/preview`).then(r => r.data)
-export const previewCampaignFilters = (filters: { filterMotif: string; filterDateFrom?: string; filterDateTo?: string; filterDoctor?: string }) =>
+export const previewCampaignFilters = (filters: {
+  filterMotifs?: string[]; filterCinPassports?: string[]; filterPhoneNumbers?: string[]
+  onlyVerifiedNumbers?: boolean; filterDateFrom?: string; filterDateTo?: string; filterDoctors?: string[]
+}) =>
   api.post('/api/admin/v1/campaigns/preview-filters', filters).then(r => r.data)
+export const getCampaignTargetingOptions = (): Promise<{
+  specialties: { specialityId: number; specialityLabel: string }[]
+  doctors: { doctorId: number; doctorLabel: string; specialityIds: number[] }[]
+}> =>
+  api.get('/api/admin/v1/campaigns/targeting-options').then(r => r.data)
 
 // ── Campaign Patient Live Session ──────────────────────────────────────────────
 export const sendPatientMessage = (campaignId: string, patientId: string, message: string) =>
