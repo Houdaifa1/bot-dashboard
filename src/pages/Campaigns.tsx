@@ -1,11 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Plus, Play, Pause, Square, CalendarClock, Users, MessageSquare,
-  AlertTriangle, CheckCircle2, XCircle, Loader2, Ban, ChevronRight, Trash2,
+  AlertTriangle, CheckCircle2, XCircle, Loader2, Ban, ChevronRight, Trash2, Search, Eye,
 } from 'lucide-react'
-import { getCampaigns, createCampaign, launchCampaign, pauseCampaign, resumeCampaign, stopCampaign, cancelCampaignSchedule, deleteCampaign } from '../api'
+import { getCampaigns, createCampaign, launchCampaign, pauseCampaign, resumeCampaign, stopCampaign, cancelCampaignSchedule, deleteCampaign, previewCampaign, previewCampaignFilters } from '../api'
 import { useAuth } from '../store/auth'
 import { useToast } from '../store/toast'
 import { PageHeader, PageLoader, Modal, ConfirmDialog, Empty, Field } from '../components/ui'
@@ -33,15 +33,49 @@ function CreateCampaignModal({
   open: boolean; onClose: () => void; onSave: (data: any) => void; saving: boolean; lang: string
 }) {
   const [name, setName] = useState('')
+  const [filterMotif, setFilterMotif] = useState('')
+  const [showRefine, setShowRefine] = useState(false)
+  const [filterDoctor, setFilterDoctor] = useState('')
   const [filterDateFrom, setFilterDateFrom] = useState('')
   const [filterDateTo, setFilterDateTo] = useState('')
   const [scheduledStartAt, setScheduledStartAt] = useState('')
   const [scheduleType, setScheduleType] = useState(SEND_NOW)
 
+  // Reset the form every time the modal is (re)opened.
+  useEffect(() => {
+    if (open) {
+      setName(''); setFilterMotif(''); setShowRefine(false); setFilterDoctor('')
+      setFilterDateFrom(''); setFilterDateTo(''); setScheduledStartAt(''); setScheduleType(SEND_NOW)
+    }
+  }, [open])
+
+  // ── Live "how many patients match" preview, debounced on filterMotif/refinements ──
+  const previewMut = useMutation({
+    mutationFn: (filters: any) => previewCampaignFilters(filters),
+  })
+
+  useEffect(() => {
+    if (!filterMotif.trim()) {
+      previewMut.reset()
+      return
+    }
+    const t = setTimeout(() => {
+      previewMut.mutate({
+        filterMotif: filterMotif.trim(),
+        ...(filterDoctor.trim() ? { filterDoctor: filterDoctor.trim() } : {}),
+        ...(filterDateFrom ? { filterDateFrom } : {}),
+        ...(filterDateTo ? { filterDateTo } : {}),
+      })
+    }, 500)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterMotif, filterDoctor, filterDateFrom, filterDateTo])
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    const payload: any = { name }
+    const payload: any = { name, filterMotif: filterMotif.trim() }
 
+    if (filterDoctor.trim()) payload.filterDoctor = filterDoctor.trim()
     if (filterDateFrom) payload.filterDateFrom = filterDateFrom
     if (filterDateTo) payload.filterDateTo = filterDateTo
 
@@ -55,7 +89,7 @@ function CreateCampaignModal({
     onSave(payload)
   }
 
-  const canSubmit = name.trim().length >= 2
+  const canSubmit = name.trim().length >= 2 && filterMotif.trim().length > 0
 
   return (
     <Modal open={open} onClose={onClose} title={lang === 'FR' ? 'Nouvelle campagne' : 'New campaign'} size="md">
@@ -65,24 +99,74 @@ function CreateCampaignModal({
           <input className="input h-10" value={name} onChange={e => setName(e.target.value)} required minLength={2} maxLength={100} placeholder="ex: Suivi post-consultation juin" />
         </Field>
 
-        {/* Patients — just a date range, most common use case */}
+        {/* Motif — the ONE real targeting field the API supports */}
         <div className="border border-neutral-200 dark:border-neutral-700 rounded-lg p-4 space-y-3">
           <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">
-            {lang === 'FR' ? '🩺 Patients à cibler' : '🩺 Target patients'}
+            {lang === 'FR' ? '🎯 Motif de visite à cibler' : '🎯 Visit reason to target'}
           </p>
-          <p className="text-xs text-neutral-400 dark:text-neutral-500">
-            {lang === 'FR'
-              ? 'Sélectionnez les patients par leur date de visite (optionnel — si vide, tous les patients avec numéro valide seront ciblés)'
-              : 'Filter patients by their visit date (optional — if empty, all patients with valid phone numbers will be targeted)'}
-          </p>
-          <div className="grid grid-cols-2 gap-4">
-            <Field label={lang === 'FR' ? 'Visite du' : 'Visit from'}>
-              <input type="date" className="input h-10" value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)} />
-            </Field>
-            <Field label={lang === 'FR' ? 'Visite au' : 'Visit to'}>
-              <input type="date" className="input h-10" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} />
-            </Field>
+          <Field
+            label={lang === 'FR' ? 'Motif' : 'Motif'}
+            hint={lang === 'FR'
+              ? 'Le mot-clé du motif de consultation, ex: "cardiologie", "suivi diabète"'
+              : 'Keyword from the consultation reason, e.g. "cardiologie", "diabetes follow-up"'}
+          >
+            <input
+              className="input h-10"
+              value={filterMotif}
+              onChange={e => setFilterMotif(e.target.value)}
+              required
+              placeholder={lang === 'FR' ? 'ex: cardiologie' : 'e.g. cardiologie'}
+            />
+          </Field>
+
+          {/* Live match feedback */}
+          <div className="flex items-center gap-2 text-xs min-h-[1.25rem]">
+            {previewMut.isPending && (
+              <span className="flex items-center gap-1.5 text-neutral-400"><Loader2 size={12} className="animate-spin" /> {lang === 'FR' ? 'Recherche...' : 'Searching...'}</span>
+            )}
+            {previewMut.isSuccess && (
+              previewMut.data.count > 0 ? (
+                <span className="flex items-center gap-1.5 text-green-600 dark:text-green-400 font-medium">
+                  <Users size={12} /> {previewMut.data.count} {lang === 'FR' ? 'patient(s) correspondant(s)' : 'matching patient(s)'}
+                </span>
+              ) : (
+                <span className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400 font-medium">
+                  <AlertTriangle size={12} /> {lang === 'FR' ? 'Aucun patient trouvé pour ce motif' : 'No patients found for this motif'}
+                </span>
+              )
+            )}
+            {previewMut.isError && (
+              <span className="flex items-center gap-1.5 text-red-600 dark:text-red-400">
+                <XCircle size={12} /> {lang === 'FR' ? 'Erreur de recherche' : 'Search failed'}
+              </span>
+            )}
           </div>
+
+          {/* Optional local refinements */}
+          {!showRefine ? (
+            <button type="button" className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1" onClick={() => setShowRefine(true)}>
+              <Search size={12} /> {lang === 'FR' ? 'Affiner (médecin, dates)' : 'Refine further (doctor, dates)'}
+            </button>
+          ) : (
+            <div className="space-y-3 pt-1 border-t border-neutral-100 dark:border-neutral-800">
+              <p className="text-xs text-neutral-400 dark:text-neutral-500 pt-2">
+                {lang === 'FR'
+                  ? 'Ces champs ne font que réduire la liste des patients déjà trouvés par le motif ci-dessus — ils ne ciblent jamais de patients seuls.'
+                  : 'These only narrow down the patients already matched by the motif above — they never target patients on their own.'}
+              </p>
+              <Field label={lang === 'FR' ? 'Médecin (nom exact)' : 'Doctor (exact name)'}>
+                <input className="input h-10" value={filterDoctor} onChange={e => setFilterDoctor(e.target.value)} placeholder="DR Ahmed BENALI" />
+              </Field>
+              <div className="grid grid-cols-2 gap-4">
+                <Field label={lang === 'FR' ? 'Visite du' : 'Visit from'}>
+                  <input type="date" className="input h-10" value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)} />
+                </Field>
+                <Field label={lang === 'FR' ? 'Visite au' : 'Visit to'}>
+                  <input type="date" className="input h-10" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} />
+                </Field>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Schedule — simple choice */}
@@ -116,7 +200,7 @@ function CreateCampaignModal({
           </button>
           <button type="submit" className="btn-primary" disabled={saving || !canSubmit}>
             {saving ? <Loader2 size={14} className="animate-spin" /> : (
-              scheduleType === SCHEDULE_LATER ? (lang === 'FR' ? 'Programmer' : 'Schedule') : (lang === 'FR' ? 'Lancer' : 'Launch')
+              scheduleType === SCHEDULE_LATER ? (lang === 'FR' ? 'Programmer' : 'Schedule') : (lang === 'FR' ? 'Créer' : 'Create')
             )}
           </button>
         </div>
@@ -143,6 +227,48 @@ function StatChip({ icon: Icon, value, label, color, onClick }: {
   )
 }
 
+// ── Preview Modal — "who exactly will get this?" before Launch ────────────────
+
+function PreviewCampaignModal({ campaign, onClose, lang }: { campaign: Campaign | null; onClose: () => void; lang: string }) {
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['campaign-preview', campaign?.id],
+    queryFn: () => previewCampaign(campaign!.id),
+    enabled: !!campaign,
+  })
+
+  return (
+    <Modal open={!!campaign} onClose={onClose} title={lang === 'FR' ? `Aperçu — ${campaign?.name ?? ''}` : `Preview — ${campaign?.name ?? ''}`} size="md">
+      {isLoading && <div className="flex justify-center py-8"><Loader2 size={20} className="animate-spin text-neutral-400" /></div>}
+      {isError && <p className="text-sm text-red-600 dark:text-red-400">{lang === 'FR' ? "Erreur lors de l'aperçu" : 'Failed to load preview'}</p>}
+      {data && (
+        <div className="space-y-3">
+          <p className="text-sm font-medium text-neutral-600 dark:text-neutral-400">
+            {data.count > 0
+              ? (lang === 'FR' ? `${data.count} patient(s) recevront ce message :` : `${data.count} patient(s) will receive this message:`)
+              : (lang === 'FR' ? 'Aucun patient ne correspond à ces filtres' : 'No patients match these filters')}
+          </p>
+          {data.count > 0 && (
+            <div className="max-h-72 overflow-y-auto border border-neutral-200 dark:border-neutral-700 rounded-lg divide-y divide-neutral-100 dark:divide-neutral-800">
+              {data.patients.map((p: any) => (
+                <div key={p.patient_id} className="flex items-center justify-between px-3 py-2 text-sm">
+                  <div className="min-w-0">
+                    <p className="font-medium text-neutral-700 dark:text-neutral-300 truncate">{p.patient}</p>
+                    <p className="text-xs text-neutral-400 truncate">{p.prestation} · {p.medecin_traitant}</p>
+                  </div>
+                  <span className="text-xs text-neutral-400 shrink-0 ml-2">{p.numeroTelephonePrincipale}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+      <div className="flex justify-end pt-4">
+        <button className="btn-outline" onClick={onClose}>{lang === 'FR' ? 'Fermer' : 'Close'}</button>
+      </div>
+    </Modal>
+  )
+}
+
 // ── Main Page ────────────────────────────────────────────────────────────────
 
 export function CampaignsPage() {
@@ -152,6 +278,7 @@ export function CampaignsPage() {
   const navigate = useNavigate()
   const [createOpen, setCreateOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<Campaign | null>(null)
+  const [previewTarget, setPreviewTarget] = useState<Campaign | null>(null)
 
   const { data: campaigns, isLoading, isError, refetch } = useQuery<Campaign[]>({
     queryKey: ['campaigns'],
@@ -259,13 +386,21 @@ export function CampaignsPage() {
                   {/* Action buttons */}
                   <div className="flex items-center gap-1 shrink-0">
                     {(c.status === 'DRAFT') && (
-                      <button className="btn-primary h-8 text-xs" onClick={() => launchMut.mutate(c.id)} disabled={launchMut.isPending}>
-                        {launchMut.isPending ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} className="mr-1" />}
-                        {lang === 'FR' ? 'Lancer' : 'Launch'}
-                      </button>
+                      <>
+                        <button className="btn-outline h-8 text-xs" onClick={() => setPreviewTarget(c)}>
+                          <Eye size={12} className="mr-1" />{lang === 'FR' ? 'Aperçu' : 'Preview'}
+                        </button>
+                        <button className="btn-primary h-8 text-xs" onClick={() => launchMut.mutate(c.id)} disabled={launchMut.isPending}>
+                          {launchMut.isPending ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} className="mr-1" />}
+                          {lang === 'FR' ? 'Lancer' : 'Launch'}
+                        </button>
+                      </>
                     )}
                     {c.status === 'SCHEDULED' && (
                       <>
+                        <button className="btn-outline h-8 text-xs" onClick={() => setPreviewTarget(c)}>
+                          <Eye size={12} className="mr-1" />{lang === 'FR' ? 'Aperçu' : 'Preview'}
+                        </button>
                         <button className="btn-primary h-8 text-xs" onClick={() => launchMut.mutate(c.id)} disabled={launchMut.isPending}>
                           <Play size={12} className="mr-1" />{lang === 'FR' ? 'Lancer maintenant' : 'Launch now'}
                         </button>
@@ -353,6 +488,12 @@ export function CampaignsPage() {
         onClose={() => setCreateOpen(false)}
         onSave={(data) => createMut.mutate(data)}
         saving={createMut.isPending}
+        lang={lang}
+      />
+
+      <PreviewCampaignModal
+        campaign={previewTarget}
+        onClose={() => setPreviewTarget(null)}
         lang={lang}
       />
 
