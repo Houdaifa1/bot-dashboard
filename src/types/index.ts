@@ -12,17 +12,6 @@ export interface BotMessage {
   language: string; updatedAt: string;
 }
 
-export interface Specialty {
-  id: string; clinicId: string; labels: Record<string, string>;
-  slug: string; isActive: boolean; displayOrder: number; createdAt: string;
-}
-
-export interface Doctor {
-  id: string; clinicId: string; specialtyId: string | null; name: string;
-  bio?: string; isActive: boolean; displayOrder: number; createdAt: string;
-  updatedAt?: string;
-}
-
 export interface TimeSlot {
   id: string; doctorId: string; dayOfWeek: number; startTime: string;
   endTime: string; slotDurationMinutes: number; isActive: boolean;

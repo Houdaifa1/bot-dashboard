@@ -9,8 +9,6 @@ import { LoginPage }       from './pages/Login'
 import { DashboardPage }   from './pages/Dashboard'
 import { ClinicPage }      from './pages/Clinic'
 import { BotMessagesPage } from './pages/BotMessages'
-import { SpecialtiesPage } from './pages/Specialties'
-import { DoctorsPage }     from './pages/Doctors'
 import { FaqsPage }        from './pages/Faqs'
 import { HandoffPage }     from './pages/Handoff'
 import { CampaignsPage }   from './pages/Campaigns'
@@ -54,12 +52,6 @@ function AppRoutes() {
       } />
       <Route path="/bot-messages" element={
         <ProtectedRoute><BotMessagesPage /></ProtectedRoute>
-      } />
-      <Route path="/specialties" element={
-        <ProtectedRoute><SpecialtiesPage /></ProtectedRoute>
-      } />
-      <Route path="/doctors" element={
-        <ProtectedRoute><DoctorsPage /></ProtectedRoute>
       } />
       <Route path="/faqs" element={
         <ProtectedRoute><FaqsPage /></ProtectedRoute>

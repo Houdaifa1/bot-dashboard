@@ -44,36 +44,6 @@ export const getBotMessages = (clinicId: string, language?: string) =>
 export const updateBotMessage = (clinicId: string, key: string, language: string, body: string) =>
   api.patch(`/api/admin/v1/clinic/${clinicId}/messages/${key}/${language}`, { body }).then(r => r.data)
 
-// ── Specialties ───────────────────────────────────────────────────────────────
-export const getSpecialties = (language?: string) =>
-  api.get('/api/admin/v1/specialties', { params: language ? { language } : {} }).then(r => r.data)
-export const createSpecialty = (data: any) =>
-  api.post('/api/admin/v1/specialties', data).then(r => r.data)
-export const updateSpecialty = (id: string, data: any) =>
-  api.patch(`/api/admin/v1/specialties/${id}`, data).then(r => r.data)
-export const deleteSpecialty = (id: string) =>
-  api.delete(`/api/admin/v1/specialties/${id}`).then(r => r.data)
-export const hardDeleteSpecialty = (id: string) =>
-  api.delete(`/api/admin/v1/specialties/${id}/hard`).then(r => r.data)
-
-// ── Doctors ───────────────────────────────────────────────────────────────────
-export const getDoctors = (specialtyId?: string) =>
-  api.get('/api/admin/v1/doctors', { params: specialtyId ? { specialtyId } : {} }).then(r => r.data)
-export const createDoctor = (data: any) =>
-  api.post('/api/admin/v1/doctors', data).then(r => r.data)
-export const updateDoctor = (id: string, data: any) =>
-  api.patch(`/api/admin/v1/doctors/${id}`, data).then(r => r.data)
-export const activateDoctor = (id: string) =>
-  api.patch(`/api/admin/v1/doctors/${id}/activate`).then(r => r.data)
-export const deactivateDoctor = (id: string) =>
-  api.delete(`/api/admin/v1/doctors/${id}/deactivate`).then(r => r.data)
-export const confirmDeactivateDoctor = (id: string, data: { notify: boolean; customMessage?: string }) =>
-  api.delete(`/api/admin/v1/doctors/${id}/deactivate/confirm`, { data }).then(r => r.data)
-export const deleteDoctor = (id: string) =>
-  api.delete(`/api/admin/v1/doctors/${id}`).then(r => r.data)
-export const confirmDeleteDoctor = (id: string, data: { notify: boolean; customMessage?: string }) =>
-  api.delete(`/api/admin/v1/doctors/${id}/confirm`, { data }).then(r => r.data)
-
 // ── Time Slots ────────────────────────────────────────────────────────────────
 export const getTimeSlots = (doctorId: string) =>
   api.get(`/api/admin/v1/doctors/${doctorId}/timeslots`).then(r => r.data)
