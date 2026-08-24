@@ -23,6 +23,7 @@ const CATEGORIES: { name: string; keys: string[] }[] = [
       'SELECT_TIME',
       'CONFIRM_BOOKING',
       'BOOKING_SUCCESS',
+      'BOOKING_REQUEST_RECEIVED',
       'BOOKING_CANCELLED',
     ],
   },
@@ -39,10 +40,11 @@ const CATEGORIES: { name: string; keys: string[] }[] = [
     name: 'Errors',
     keys: [
       'FALLBACK',
-      'HANDOFF_TRIGGERED',
       'SESSION_EXPIRED',
       'NO_SLOTS_AVAILABLE',
       'OUTSIDE_HOURS',
+      'NO_DOCTORS_FOR_SPECIALTY',
+      'NO_SPECIALTIES_AVAILABLE',
       'ERROR_MISSING_INFO',
       'ERROR_DOCTOR_NOT_FOUND',
       'ERROR_SPECIALTY_NOT_FOUND',
@@ -57,6 +59,7 @@ const CATEGORIES: { name: string; keys: string[] }[] = [
       'BUTTON_CANCEL',
       'BUTTON_BOOK_APP',
       'BUTTON_FAQ',
+      'BUTTON_FAQ_LIST',
       'BUTTON_AGENT',
       'BUTTON_MENU',
       'BUTTON_FRENCH',
@@ -70,6 +73,27 @@ const CATEGORIES: { name: string; keys: string[] }[] = [
       'HEADER_DOCTORS',
       'HEADER_TIMES',
       'HEADER_SELECT_TIME',
+      'HEADER_SELECT_FAQ',
+      'HEADER_TIME_PAGE',
+    ],
+  },
+  {
+    name: 'Handoff',
+    keys: [
+      'HANDOFF_TRIGGERED',
+      'HANDOFF_WAITING',
+      'HANDOFF_RESOLVED',
+    ],
+  },
+  {
+    name: 'Campaign',
+    keys: [
+      'CAMPAIGN_OPENING_MESSAGE',
+      'CAMPAIGN_REMINDER_MESSAGE',
+      'CAMPAIGN_URGENT_MESSAGE',
+      'CAMPAIGN_HANDOFF_MESSAGE',
+      'CAMPAIGN_REBOOK_CONFIRM',
+      'CAMPAIGN_FAREWELL_MESSAGE',
     ],
   },
 ]
@@ -467,7 +491,26 @@ export function BotMessagesPage() {
     )
   }
 
-  const totalKeys = CATEGORIES.reduce((sum, c) => sum + c.keys.length, 0)
+  // CATEGORIES only controls grouping and order. Any key that exists in the
+  // database but isn't listed there still has to be editable, otherwise adding
+  // a message key silently makes it invisible in this page — so whatever is
+  // left over is collected into its own section rather than dropped.
+  const categorised = new Set(CATEGORIES.flatMap(c => c.keys))
+  const uncategorised = [...new Set([...frMap.keys(), ...enMap.keys()])]
+    .filter(k => !categorised.has(k))
+    .sort()
+
+  const categories = uncategorised.length > 0
+    ? [...CATEGORIES, { name: 'Other', keys: uncategorised }]
+    : CATEGORIES
+
+  // Count only keys that actually exist in the database, so the total matches
+  // what is really rendered instead of what the hardcoded list hopes exists.
+  const allDbKeys = new Set([...frMap.keys(), ...enMap.keys()])
+  const totalKeys = categories.reduce(
+    (sum, c) => sum + c.keys.filter(k => allDbKeys.has(k)).length,
+    0,
+  )
 
   return (
     <div className="max-w-6xl">
@@ -510,7 +553,7 @@ export function BotMessagesPage() {
 
       {/* Categories */}
       <div className="space-y-4">
-        {CATEGORIES.map(category => (
+        {categories.map(category => (
           <CategorySection
             key={category.name}
             category={category}
