@@ -1,4 +1,5 @@
 import axios from 'axios'
+import type { ComplaintStatus } from '../types'
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'https://api.houdaifa.dev'
 export const api = axios.create({ baseURL: BASE_URL })
@@ -103,6 +104,10 @@ export const updateComplaintStatus = (id: string, status: string) =>
   api.patch(`/api/admin/v1/complaints/${id}/status`, { status }).then(r => r.data)
 export const updateComplaintStaffNote = (id: string, staffNote: string) =>
   api.patch(`/api/admin/v1/complaints/${id}/staff-note`, { staffNote }).then(r => r.data)
+// Bulk: every complaint of one CampaignPatient in one atomic call.
+export const updateComplaintStatusForPatient = (campaignPatientId: string, status: ComplaintStatus) =>
+  api.patch(`/api/admin/v1/complaints/patient/${campaignPatientId}/status`, { status })
+    .then(r => r.data as { count: number })
 
 // ── Booking Requests ──────────────────────────────────────────────────────────
 export const getBookingRequests = (params?: any) =>

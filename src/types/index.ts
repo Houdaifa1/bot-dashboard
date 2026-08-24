@@ -92,13 +92,13 @@ export interface StaffHandover {
 
 export type ComplaintType = 'COMPLAINT' | 'MEDICAL_CONCERN' | 'URGENT'
 export type ComplaintSeverity = 'LOW' | 'MEDIUM' | 'HIGH'
-export type ComplaintStatusFilter = 'NEW' | 'REVIEWED' | 'RESOLVED'
+export type ComplaintStatus = 'NEW' | 'REVIEWED' | 'RESOLVED'
 
 export interface Complaint {
   id: string; campaignPatientId: string; clinicId: string;
   type: ComplaintType; severity: ComplaintSeverity;
   triggeringMessage: string; summary: string;
-  status: ComplaintStatusFilter; staffNote?: string | null;
+  status: ComplaintStatus; staffNote?: string | null;
   createdAt: string; updatedAt: string;
   reviewedAt?: string | null; resolvedAt?: string | null;
   campaignPatient?: {

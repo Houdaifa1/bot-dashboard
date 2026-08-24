@@ -332,6 +332,20 @@ export function CampaignPatientsPage() {
     refetchInterval: 5000,
   })
 
+  // Deep link from the complaints page: ?patientId=... opens that patient's
+  // conversation as soon as the campaign loads. Runs once per patientId so the
+  // 5s refetch can't reopen a drawer the user just closed.
+  const deepLinkId = searchParams.get('patientId')
+  const openedDeepLink = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (!deepLinkId || openedDeepLink.current === deepLinkId) return
+    const match = data?.patients?.find(p => p.id === deepLinkId)
+    if (!match) return
+    openedDeepLink.current = deepLinkId
+    setSelected(match)
+  }, [deepLinkId, data])
+
   if (isLoading) return <PageLoader />
 
   if (isError || !data) {
