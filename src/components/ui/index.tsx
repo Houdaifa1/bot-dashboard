@@ -1,8 +1,7 @@
 import { useEffect } from 'react'
 import type { ReactNode } from 'react'
 import { X, Loader2, Inbox, AlertTriangle } from 'lucide-react'
-import type { AppointmentStatus } from '../../types'
-import type { Lang, TKey } from '../../i18n'
+import type { Lang } from '../../i18n'
 import { t } from '../../i18n'
 
 // ── Modal ─────────────────────────────────────────────────────────────────────
@@ -116,27 +115,6 @@ export function Empty({ message }: { message: string }) {
       <p className="text-sm">{message}</p>
     </div>
   )
-}
-
-// ── Status Badge ──────────────────────────────────────────────────────────────
-const statusStyles: Record<AppointmentStatus, string> = {
-  PENDING:   'badge-warning',
-  CONFIRMED: 'badge-primary',
-  CANCELLED: 'badge-danger',
-  COMPLETED: 'badge-success',
-  NO_SHOW:   'badge-neutral',
-}
-
-export function StatusBadge({ status, lang }: { status: AppointmentStatus; lang: Lang }) {
-  const key = `status_${status}` as TKey
-  return <span className={statusStyles[status]}>{t(lang, key)}</span>
-}
-
-// ── Active Badge ──────────────────────────────────────────────────────────────
-export function ActiveBadge({ active, lang }: { active: boolean; lang: Lang }) {
-  return active
-    ? <span className="badge-success">{t(lang, 'active')}</span>
-    : <span className="badge-neutral">{t(lang, 'inactive')}</span>
 }
 
 // ── Form Field ────────────────────────────────────────────────────────────────

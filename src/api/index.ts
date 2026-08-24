@@ -1,7 +1,6 @@
 import axios from 'axios'
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'https://api.houdaifa.dev'
-console.log('API URL:', BASE_URL)
 export const api = axios.create({ baseURL: BASE_URL })
 
 api.interceptors.request.use((config) => {
@@ -26,10 +25,6 @@ api.interceptors.response.use(
 export const login = (email: string, password: string) =>
   api.post('/api/admin/v1/auth/login', { email, password }).then(r => r.data)
 
-// ── Stats ─────────────────────────────────────────────────────────────────────
-export const getStats = () =>
-  api.get('/api/admin/v1/stats').then(r => r.data)
-
 // ── Clinic ────────────────────────────────────────────────────────────────────
 export const getClinic = () =>
   api.get('/api/admin/v1/clinics').then(r => r.data)
@@ -44,16 +39,6 @@ export const getBotMessages = (clinicId: string, language?: string) =>
 export const updateBotMessage = (clinicId: string, key: string, language: string, body: string) =>
   api.patch(`/api/admin/v1/clinic/${clinicId}/messages/${key}/${language}`, { body }).then(r => r.data)
 
-// ── Time Slots ────────────────────────────────────────────────────────────────
-export const getTimeSlots = (doctorId: string) =>
-  api.get(`/api/admin/v1/doctors/${doctorId}/timeslots`).then(r => r.data)
-export const createTimeSlot = (doctorId: string, data: any) =>
-  api.post(`/api/admin/v1/doctors/${doctorId}/timeslots`, data).then(r => r.data)
-export const updateTimeSlot = (id: string, data: any) =>
-  api.patch(`/api/admin/v1/timeslots/${id}`, data).then(r => r.data)
-export const deleteTimeSlot = (id: string) =>
-  api.delete(`/api/admin/v1/timeslots/${id}`).then(r => r.data)
-
 // ── FAQs ──────────────────────────────────────────────────────────────────────
 export const getFaqs = (language?: string) =>
   api.get('/api/admin/v1/faqs', { params: { ...(language ? { language } : {}), includeInactive: 'true' } }).then(r => r.data)
@@ -65,14 +50,6 @@ export const deleteFaq = (id: string) =>
   api.delete(`/api/admin/v1/faqs/${id}`).then(r => r.data)
 export const hardDeleteFaq = (id: string) =>
   api.delete(`/api/admin/v1/faqs/${id}/hard`).then(r => r.data)
-
-// ── Appointments ──────────────────────────────────────────────────────────────
-export const getAppointments = (params?: any) =>
-  api.get('/api/admin/v1/appointments', { params }).then(r => r.data)
-export const updateAppointmentStatus = (id: string, status: string) =>
-  api.patch(`/api/admin/v1/appointments/${id}/status`, { status }).then(r => r.data)
-export const deleteAppointment = (id: string) =>
-  api.delete(`/api/admin/v1/appointments/${id}`).then(r => r.data)
 
 // ── Handoff (campaign AI handoff sessions) ────────────────────────────────────
 export const getHandoffSessions = () =>
@@ -89,8 +66,6 @@ export const getCampaign = (id: string) =>
   api.get(`/api/admin/v1/campaigns/${id}`).then(r => r.data)
 export const createCampaign = (data: any) =>
   api.post('/api/admin/v1/campaigns', data).then(r => r.data)
-export const updateCampaign = (id: string, data: any) =>
-  api.patch(`/api/admin/v1/campaigns/${id}`, data).then(r => r.data)
 export const launchCampaign = (id: string) =>
   api.post(`/api/admin/v1/campaigns/${id}/launch`).then(r => r.data)
 export const stopCampaign = (id: string) =>
@@ -115,14 +90,8 @@ export const getCampaignTargetingOptions = (): Promise<{
 // ── Campaign Patient Live Session ──────────────────────────────────────────────
 export const getPatientConversation = (campaignId: string, patientId: string) =>
   api.get(`/api/admin/v1/campaigns/${campaignId}/patients/${patientId}/conversation`).then(r => r.data)
-export const sendPatientMessage = (campaignId: string, patientId: string, message: string) =>
-  api.post(`/api/admin/v1/campaigns/${campaignId}/patients/${patientId}/send-message`, { message }).then(r => r.data)
-export const resolvePatientConversation = (campaignId: string, patientId: string) =>
-  api.post(`/api/admin/v1/campaigns/${campaignId}/patients/${patientId}/resolve`).then(r => r.data)
 export const takeOverPatientConversation = (campaignId: string, patientId: string) =>
   api.post(`/api/admin/v1/campaigns/${campaignId}/patients/${patientId}/take-over`).then(r => r.data)
-export const closePatientConversation = (campaignId: string, patientId: string) =>
-  api.post(`/api/admin/v1/campaigns/${campaignId}/patients/${patientId}/close`).then(r => r.data)
 
 
 // ── Complaints ────────────────────────────────────────────────────────────────

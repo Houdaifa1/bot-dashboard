@@ -12,34 +12,10 @@ export interface BotMessage {
   language: string; updatedAt: string;
 }
 
-export interface TimeSlot {
-  id: string; doctorId: string; dayOfWeek: number; startTime: string;
-  endTime: string; slotDurationMinutes: number; isActive: boolean;
-}
-
 export interface FAQ {
   id: string; clinicId: string; question: string; answer: string;
   keywords: string[]; isActive: boolean; displayOrder: number; language: string;
   updatedAt?: string;
-}
-
-export interface Appointment {
-  id: string; clinicId: string; doctorId: string; specialtyId: string;
-  patientName: string; patientPhone: string; appointmentDate: string;
-  appointmentTime: string; status: AppointmentStatus; notes?: string;
-  createdAt: string; updatedAt: string;
-  doctor?: { id: string; name: string };
-  specialty?: { id: string; label: string };
-}
-
-export type AppointmentStatus = 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'COMPLETED' | 'NO_SHOW'
-
-export interface Stats {
-  totalAppointments: number;
-  todayAppointments: number;
-  pendingAppointments: number;
-  activeDoctors: number;
-  recentAppointments: Appointment[];
 }
 
 export interface AdminUser {
