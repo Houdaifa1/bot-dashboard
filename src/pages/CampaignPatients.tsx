@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import {
   getCampaign,
+  getPatientConversation,
   takeOverPatientConversation,
 } from '../api'
 import { useToast } from '../store/toast'
@@ -85,18 +86,14 @@ function ConversationDrawer({
   const navigate = useNavigate()
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
+  // Must go through the shared API client: a bare relative fetch resolves
+  // against the dashboard's own origin instead of the API, so the poll
+  // silently 404s and the drawer stays frozen on the snapshot it opened with.
   const { data: conv, isLoading } = useQuery({
     queryKey: ['conv', patient.id],
-    queryFn: async () => {
-      const token = localStorage.getItem('token')
-      const res = await fetch(
-        `/api/admin/v1/campaigns/${campaignId}/patients/${patient.id}/conversation`,
-        { headers: { Authorization: `Bearer ${token}` } },
-      )
-      if (!res.ok) throw new Error('Failed to load conversation')
-      return res.json()
-    },
+    queryFn: () => getPatientConversation(campaignId, patient.id),
     refetchInterval: 2000,
+    refetchIntervalInBackground: true,
   })
 
   const live         = conv ?? patient

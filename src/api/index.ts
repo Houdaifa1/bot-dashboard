@@ -143,6 +143,8 @@ export const getCampaignTargetingOptions = (): Promise<{
   api.get('/api/admin/v1/campaigns/targeting-options').then(r => r.data)
 
 // ── Campaign Patient Live Session ──────────────────────────────────────────────
+export const getPatientConversation = (campaignId: string, patientId: string) =>
+  api.get(`/api/admin/v1/campaigns/${campaignId}/patients/${patientId}/conversation`).then(r => r.data)
 export const sendPatientMessage = (campaignId: string, patientId: string, message: string) =>
   api.post(`/api/admin/v1/campaigns/${campaignId}/patients/${patientId}/send-message`, { message }).then(r => r.data)
 export const resolvePatientConversation = (campaignId: string, patientId: string) =>
