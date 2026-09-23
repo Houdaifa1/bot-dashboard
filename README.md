@@ -25,6 +25,8 @@ CI runs the complete lint, test, build, and production dependency audit checks.
 
 The dashboard sends date, time, ClinOps patient ID, ClinOps specialty ID, a reviewed booking reason (`motif`), doctor label, and optional WhatsApp text to `POST /api/admin/v1/booking-requests/:id/confirm` on the backend. Specialty and doctor choices come from the backend's targeting options endpoint. The backend verifies the patient phone and doctor availability before a live ClinOps `createNewRDV` call. The dashboard cannot verify that WhatsApp delivered a notification. A pending request with a prior external attempt must be reconciled in ClinOps by staff.
 
+For follow-up rebooking, the form displays the patient's date and time preferences. If an existing appointment was confirmed, the dashboard requires staff to acknowledge that they reviewed and resolved it in ClinOps. The bot cannot cancel it through the documented API.
+
 The dashboard is a staff interface, not the external ClinOps API client. It must be deployed alongside the matching backend branch and tested in an authorized staging environment before use with patient information.
 
 ## Deployment

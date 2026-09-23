@@ -147,6 +147,7 @@ export interface ConfirmBookingRequestInput {
   motif: string
   doctorName: string
   message?: string
+  priorAppointmentReviewed?: boolean
 }
 export const confirmBookingRequest = (id: string, data: ConfirmBookingRequestInput) =>
   api.post(`/api/admin/v1/booking-requests/${id}/confirm`, data).then(r => r.data)

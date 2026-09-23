@@ -11,10 +11,11 @@ const valid = {
   specialityId: 5, motif: 'Follow-up consultation', doctorName: 'Dr Example',
 }
 
-test('prefills the exact inbound slot and recorded patient ID', () => {
+test('prefills the exact inbound slot and recorded ClinOps IDs', () => {
   assert.deepEqual(initialConfirmation({
     requestedDate: '2099-01-01', requestedTime: '10:00', clinopsPatientId: 42,
-  }), { ...valid, specialityId: 0, motif: '', doctorName: '' })
+    clinopsSpecialityId: 5,
+  }), { ...valid, motif: '', doctorName: '' })
 })
 
 test('prefills a campaign patient ID from the backend queue response', () => {

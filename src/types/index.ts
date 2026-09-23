@@ -116,12 +116,14 @@ export interface BookingRequest {
   patientName?: string | null; patientPhone?: string | null;
   language?: 'EN' | 'FR' | 'AR' | null;
   clinopsPatientId?: number | null;
+  clinopsSpecialityId?: number | null;
   requestedDate?: string | null; requestedTime?: string | null;
   externalAttemptAt?: string | null;
   externalAttemptState?: 'SUBMITTING' | 'RECONCILE' | 'CONFIRMED' | null;
   appointmentId?: string | null;
+  previousBookingRequestId?: string | null;
   preferredSpecialty?: string | null; preferredDoctor?: string | null;
-  preferredDateRange?: string | null; reason?: string | null;
+  preferredDateRange?: string | null; preferredTimeRange?: string | null; reason?: string | null;
   rawPatientRequest: string; status: BookingRequestStatus;
   createdAt: string; updatedAt: string; confirmedAt?: string | null;
   campaignPatient?: {

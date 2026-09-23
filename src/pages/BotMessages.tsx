@@ -17,6 +17,7 @@ const CATEGORIES: { name: string; keys: string[] }[] = [
       'WELCOME',
       'LANGUAGE_PROMPT',
       'ASK_NAME',
+      'ASK_REASON',
       'SELECT_SPECIALTY',
       'SELECT_DOCTOR',
       'SELECT_DATE',

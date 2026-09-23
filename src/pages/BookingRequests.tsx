@@ -142,6 +142,8 @@ function ConfirmModal({ booking, onClose, onConfirm, loading, options, optionsLo
   const [messageReviewed, setMessageReviewed] = useState(false)
   const [preview, setPreview]   = useState(false)
   const [errors, setErrors]     = useState<ConfirmationErrors>({})
+  const [priorReviewed, setPriorReviewed] = useState(false)
+  const [priorReviewError, setPriorReviewError] = useState(false)
 
   const patientName = booking.campaignPatient?.patientName ?? ''
   const defaultMsg  = buildConfirmMessage(lang, patientName, fields.appointmentDate, fields.appointmentTime)
@@ -164,7 +166,12 @@ function ConfirmModal({ booking, onClose, onConfirm, loading, options, optionsLo
 
   const handleSubmit = () => {
     if (!validate()) return
-    onConfirm({ ...fields, motif: fields.motif.trim(), message: finalMsg.trim() || undefined })
+    if (booking.previousBookingRequestId && !priorReviewed) {
+      setPriorReviewError(true)
+      return
+    }
+    onConfirm({ ...fields, motif: fields.motif.trim(), message: finalMsg.trim() || undefined,
+      priorAppointmentReviewed: booking.previousBookingRequestId ? true : undefined })
   }
 
   return (
@@ -187,6 +194,11 @@ function ConfirmModal({ booking, onClose, onConfirm, loading, options, optionsLo
                 Preferred dates: <span className="font-medium">{booking.preferredDateRange}</span>
               </p>
             )}
+            {booking.preferredTimeRange && (
+              <p className="text-xs text-green-800 dark:text-green-300 mt-0.5">
+                Preferred time: <span className="font-medium">{booking.preferredTimeRange}</span>
+              </p>
+            )}
             {booking.rawPatientRequest && (
               <p className="text-xs text-green-900 dark:text-green-200 mt-2 whitespace-pre-wrap">
                 Patient request: {booking.rawPatientRequest}
@@ -194,6 +206,21 @@ function ConfirmModal({ booking, onClose, onConfirm, loading, options, optionsLo
             )}
           </div>
         </div>
+
+        {booking.previousBookingRequestId && (
+          <div role="alert" className="p-3.5 rounded-xl border border-amber-300 bg-amber-50 text-amber-900 text-sm dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-200">
+            <p className="font-semibold">Existing confirmed appointment</p>
+            <p>The prior appointment may still be active in ClinOps. Review it there and arrange any cancellation or reschedule with staff before confirming this request. The bot cannot cancel it through the documented API.</p>
+            <label className="flex items-start gap-2 mt-2">
+              <input type="checkbox" checked={priorReviewed} onChange={e => {
+                setPriorReviewed(e.target.checked)
+                setPriorReviewError(false)
+              }} />
+              I reviewed the existing appointment in ClinOps and resolved the overlap.
+            </label>
+            {priorReviewError && <p className="mt-1 text-red-700 dark:text-red-300">Review the prior appointment first.</p>}
+          </div>
+        )}
 
         {optionsError && (
           <div role="alert" className="text-sm text-red-700 dark:text-red-300">

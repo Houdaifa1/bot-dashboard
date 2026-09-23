@@ -6,7 +6,7 @@ export interface BookingOptions {
   doctors: { doctorId: number; doctorLabel: string; specialityIds: number[] }[]
 }
 
-export type ConfirmationFields = Omit<ConfirmBookingRequestInput, 'message'>
+export type ConfirmationFields = Omit<ConfirmBookingRequestInput, 'message' | 'priorAppointmentReviewed'>
 export type ConfirmationErrors = Partial<Record<keyof ConfirmationFields, string>>
 
 export function initialConfirmation(booking: BookingRequest): ConfirmationFields {
@@ -14,7 +14,7 @@ export function initialConfirmation(booking: BookingRequest): ConfirmationFields
     appointmentDate: booking.requestedDate?.slice(0, 10) ?? '',
     appointmentTime: booking.requestedTime ?? '',
     patientId: booking.clinopsPatientId ?? booking.campaignPatient?.clinopsPatientId ?? 0,
-    specialityId: 0,
+    specialityId: booking.clinopsSpecialityId ?? 0,
     motif: '',
     doctorName: '',
   }
