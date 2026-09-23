@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import type { ElementType } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
@@ -6,6 +7,8 @@ import {
   AlertTriangle, CheckCircle2, XCircle, Loader2, Ban, ChevronRight, Trash2, Eye, X, ChevronDown, ChevronUp,
 } from 'lucide-react'
 import { getCampaigns, createCampaign, launchCampaign, stopCampaign, cancelCampaignSchedule, deleteCampaign, previewCampaign, previewCampaignFilters, getCampaignTargetingOptions } from '../api'
+import type { CreateCampaignInput } from '../api'
+import { apiErrorMessage } from '../api/error'
 import { useAuth } from '../store/auth'
 import { useToast } from '../store/toast'
 import { PageHeader, PageLoader, Modal, ConfirmDialog, Empty, Field } from '../components/ui'
@@ -27,9 +30,9 @@ const STATUS_STYLES: Record<CampaignStatus, { bg: string; text: string; label: s
 // list. Used for specialties and doctors so staff pick exact values instead
 // of typing free text.
 
-function ChipMultiSelect({ options, selected, onToggle, getKey, getLabel, emptyMessage }: {
-  options: any[]; selected: string[]; onToggle: (label: string) => void
-  getKey: (o: any) => string | number; getLabel: (o: any) => string; emptyMessage: string
+function ChipMultiSelect({ options, selected, onToggle, emptyMessage }: {
+  options: { doctorId: number; doctorLabel: string }[]; selected: string[]; onToggle: (label: string) => void
+  emptyMessage: string
 }) {
   if (options.length === 0) {
     return <p className="text-xs text-neutral-400 dark:text-neutral-500 italic">{emptyMessage}</p>
@@ -37,11 +40,11 @@ function ChipMultiSelect({ options, selected, onToggle, getKey, getLabel, emptyM
   return (
     <div className="flex flex-wrap gap-2">
       {options.map(o => {
-        const label = getLabel(o)
+        const label = o.doctorLabel
         const active = selected.includes(label)
         return (
           <button
-            key={getKey(o)}
+            key={o.doctorId}
             type="button"
             onClick={() => onToggle(label)}
             className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
@@ -129,7 +132,7 @@ const SCHEDULE_LATER = 'schedule_later'
 function CreateCampaignModal({
   open, onClose, onSave, saving, lang,
 }: {
-  open: boolean; onClose: () => void; onSave: (data: any) => void; saving: boolean; lang: string
+  open: boolean; onClose: () => void; onSave: (data: CreateCampaignInput) => void; saving: boolean; lang: string
 }) {
   const [name, setName] = useState('')
   const [filterMotifs, setFilterMotifs] = useState<string[]>([])
@@ -142,17 +145,6 @@ function CreateCampaignModal({
   const [onlyVerifiedNumbers, setOnlyVerifiedNumbers] = useState(true)
   const [scheduledStartAt, setScheduledStartAt] = useState('')
   const [scheduleType, setScheduleType] = useState(SEND_NOW)
-
-  // Reset the form every time the modal is (re)opened.
-  useEffect(() => {
-    if (open) {
-      setName('')
-      setFilterMotifs([]); setFilterCinPassports([]); setFilterPhoneNumbers([])
-      setShowRefine(false); setFilterDoctors([])
-      setFilterDateFrom(''); setFilterDateTo(''); setOnlyVerifiedNumbers(true)
-      setScheduledStartAt(''); setScheduleType(SEND_NOW)
-    }
-  }, [open])
 
   // Exact doctor list from ClinOps, so staff pick from the real list instead
   // of typing free text (no way to get this wrong).
@@ -170,7 +162,7 @@ function CreateCampaignModal({
 
   // ── Live "how many patients match" preview, debounced on selection changes ──
   const previewMut = useMutation({
-    mutationFn: (filters: any) => previewCampaignFilters(filters),
+    mutationFn: (filters: Parameters<typeof previewCampaignFilters>[0]) => previewCampaignFilters(filters),
   })
 
   useEffect(() => {
@@ -195,7 +187,7 @@ function CreateCampaignModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    const payload: any = { name, onlyVerifiedNumbers }
+    const payload: CreateCampaignInput = { name, onlyVerifiedNumbers }
 
     if (filterMotifs.length) payload.filterMotifs = filterMotifs
     if (filterCinPassports.length) payload.filterCinPassports = filterCinPassports
@@ -311,8 +303,6 @@ function CreateCampaignModal({
                   options={options?.doctors ?? []}
                   selected={filterDoctors}
                   onToggle={toggleDoctor}
-                  getKey={d => d.doctorId}
-                  getLabel={d => d.doctorLabel}
                   emptyMessage={lang === 'FR' ? 'Aucun médecin disponible' : 'No doctors available'}
                 />
               </Field>
@@ -378,7 +368,7 @@ function CreateCampaignModal({
 // ── Stat Chip ────────────────────────────────────────────────────────────────
 
 function StatChip({ icon: Icon, value, label, color, onClick }: {
-  icon: any; value: number; label: string; color: string; onClick?: () => void
+  icon: ElementType; value: number; label: string; color: string; onClick?: () => void
 }) {
   if (value === 0) return null
   return (
@@ -415,7 +405,7 @@ function PreviewCampaignModal({ campaign, onClose, lang }: { campaign: Campaign 
           </p>
           {data.count > 0 && (
             <div className="max-h-72 overflow-y-auto border border-neutral-200 dark:border-neutral-700 rounded-lg divide-y divide-neutral-100 dark:divide-neutral-800">
-              {data.patients.map((p: any) => (
+              {data.patients.map(p => (
                 <div key={p.patient_id} className="flex items-center justify-between px-3 py-2 text-sm">
                   <div className="min-w-0">
                     <p className="font-medium text-neutral-700 dark:text-neutral-300 truncate">{p.patient}</p>
@@ -452,13 +442,13 @@ export function CampaignsPage() {
   })
 
   const createMut = useMutation({
-    mutationFn: (data: any) => createCampaign(data),
+    mutationFn: (data: CreateCampaignInput) => createCampaign(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['campaigns'] })
       toast(lang === 'FR' ? 'Campagne créée' : 'Campaign created', 'success')
       setCreateOpen(false)
     },
-    onError: (err: any) => toast(lang === 'FR' ? 'Erreur lors de la création' : (err?.response?.data?.message ?? 'Failed to create campaign'), 'error'),
+    onError: (err: unknown) => toast(lang === 'FR' ? 'Erreur lors de la création' : apiErrorMessage(err, 'Failed to create campaign'), 'error'),
   })
 
   const launchMut = useMutation({
@@ -467,25 +457,25 @@ export function CampaignsPage() {
       queryClient.invalidateQueries({ queryKey: ['campaigns'] })
       toast(lang === 'FR' ? 'Campagne lancée' : 'Campaign launched', 'success')
     },
-    onError: (err: any) => toast(lang === 'FR' ? 'Erreur lors du lancement' : (err?.response?.data?.message ?? 'Failed to launch campaign'), 'error'),
+    onError: (err: unknown) => toast(lang === 'FR' ? 'Erreur lors du lancement' : apiErrorMessage(err, 'Failed to launch campaign'), 'error'),
   })
 
   const stopMut = useMutation({
     mutationFn: (id: string) => stopCampaign(id),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['campaigns'] }); toast(lang === 'FR' ? 'Campagne arrêtée' : 'Campaign stopped', 'success') },
-    onError: (err: any) => toast(lang === 'FR' ? "Erreur lors de l'arrêt" : (err?.response?.data?.message ?? 'Failed to stop campaign'), 'error'),
+    onError: (err: unknown) => toast(lang === 'FR' ? "Erreur lors de l'arrêt" : apiErrorMessage(err, 'Failed to stop campaign'), 'error'),
   })
 
   const cancelScheduleMut = useMutation({
     mutationFn: (id: string) => cancelCampaignSchedule(id),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['campaigns'] }); toast(lang === 'FR' ? 'Programmation annulée' : 'Schedule cancelled', 'success') },
-    onError: (err: any) => toast(lang === 'FR' ? "Erreur lors de l'annulation" : (err?.response?.data?.message ?? 'Failed to cancel schedule'), 'error'),
+    onError: (err: unknown) => toast(lang === 'FR' ? "Erreur lors de l'annulation" : apiErrorMessage(err, 'Failed to cancel schedule'), 'error'),
   })
 
   const deleteMut = useMutation({
     mutationFn: (id: string) => deleteCampaign(id),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['campaigns'] }); toast(lang === 'FR' ? 'Campagne supprimée' : 'Campaign deleted', 'success') },
-    onError: (err: any) => toast(lang === 'FR' ? 'Erreur lors de la suppression' : (err?.response?.data?.message ?? 'Failed to delete campaign'), 'error'),
+    onError: (err: unknown) => toast(lang === 'FR' ? 'Erreur lors de la suppression' : apiErrorMessage(err, 'Failed to delete campaign'), 'error'),
   })
 
   if (isLoading) return <PageLoader />
@@ -624,13 +614,13 @@ export function CampaignsPage() {
         </div>
       )}
 
-      <CreateCampaignModal
+      {createOpen && <CreateCampaignModal
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         onSave={(data) => createMut.mutate(data)}
         saving={createMut.isPending}
         lang={lang}
-      />
+      />}
 
       <PreviewCampaignModal
         campaign={previewTarget}

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getClinic, updateClinic } from '../api'
 import { useAuth } from '../store/auth'
@@ -18,7 +18,18 @@ const TIMEZONES = [
   'UTC',
 ]
 
-const LANGUAGES = ['FR', 'EN']
+const LANGUAGES = ['FR', 'EN', 'AR']
+
+function clinicForm(clinic: Clinic) {
+  return {
+    name: clinic.name,
+    phone: clinic.phone,
+    address: clinic.address ?? '',
+    timezone: clinic.timezone,
+    defaultLanguage: clinic.defaultLanguage,
+    notificationPhone: clinic.notificationPhone ?? '',
+  }
+}
 
 export function ClinicPage() {
   const { lang } = useAuth()
@@ -30,36 +41,18 @@ export function ClinicPage() {
     queryFn: getClinic,
   })
 
-  const [form, setForm] = useState({
-    name: '',
-    phone: '',
-    address: '',
-    timezone: '',
-    defaultLanguage: '',
-    notificationPhone: '',
-  })
-
+  const [draft, setDraft] = useState<ReturnType<typeof clinicForm> | null>(null)
   const [dirty, setDirty] = useState(false)
-
-  useEffect(() => {
-    if (clinic) {
-      setForm({
-        name: clinic.name,
-        phone: clinic.phone,
-        address: clinic.address ?? '',
-        timezone: clinic.timezone,
-        defaultLanguage: clinic.defaultLanguage,
-        notificationPhone: (clinic as any).notificationPhone ?? '',
-      })
-      setDirty(false)
-    }
-  }, [clinic])
+  const form = draft ?? (clinic ? clinicForm(clinic) : {
+    name: '', phone: '', address: '', timezone: '', defaultLanguage: '', notificationPhone: '',
+  })
 
   const mutation = useMutation({
     mutationFn: (data: Partial<Clinic>) => updateClinic(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['clinic'] })
       toast(t(lang, 'clinic_saved'), 'success')
+      setDraft(null)
       setDirty(false)
     },
     onError: () => {
@@ -67,8 +60,8 @@ export function ClinicPage() {
     },
   })
 
-  const set = (field: string, value: any) => {
-    setForm(f => ({ ...f, [field]: value }))
+  const set = (field: keyof ReturnType<typeof clinicForm>, value: string) => {
+    setDraft(f => ({ ...(f ?? form), [field]: value }))
     setDirty(true)
   }
 
@@ -79,23 +72,14 @@ export function ClinicPage() {
       phone: form.phone,
       address: form.address,
       timezone: form.timezone,
-      defaultLanguage: form.defaultLanguage as any,
+      defaultLanguage: form.defaultLanguage,
       notificationPhone: form.notificationPhone || null,
-    } as any)
+    })
   }
 
   const handleReset = () => {
-    if (clinic) {
-      setForm({
-        name: clinic.name,
-        phone: clinic.phone,
-        address: clinic.address ?? '',
-        timezone: clinic.timezone,
-        defaultLanguage: clinic.defaultLanguage,
-        notificationPhone: (clinic as any).notificationPhone ?? '',
-      })
-      setDirty(false)
-    }
+    setDraft(null)
+    setDirty(false)
   }
 
   if (isLoading) return <PageLoader />

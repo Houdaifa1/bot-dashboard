@@ -12,6 +12,7 @@ import {
   takeOverPatientConversation,
 } from '../api'
 import { useToast } from '../store/toast'
+import { apiErrorMessage } from '../api/error'
 import { PageHeader, PageLoader, Empty } from '../components/ui'
 import type { Campaign, CampaignPatient, CampaignMessage } from '../types'
 
@@ -22,16 +23,19 @@ function parseContent(content: string): string | null {
   const t = content.trim()
   if ((t.startsWith('[') || t.startsWith('{')) && (t.endsWith(']') || t.endsWith('}'))) {
     try {
-      const parsed = JSON.parse(t)
+      const parsed: unknown = JSON.parse(t)
       if (Array.isArray(parsed)) {
         const text = parsed
-          .filter((b: any) => b.type === 'text' && b.text?.trim())
-          .map((b: any) => b.text.trim())
+          .filter((b): b is { type: 'text'; text: string } =>
+            typeof b === 'object' && b !== null && b.type === 'text' &&
+            typeof b.text === 'string' && !!b.text.trim())
+          .map(b => b.text.trim())
           .join('\n\n')
         return text || null
       }
-      if (parsed?.type === 'tool_result' || parsed?.type === 'tool_use') return null
-    } catch {}
+      if (typeof parsed === 'object' && parsed !== null && 'type' in parsed &&
+          (parsed.type === 'tool_result' || parsed.type === 'tool_use')) return null
+    } catch { return content }
   }
   return content
 }
@@ -117,7 +121,7 @@ function ConversationDrawer({
       toast('You are now handling this patient', 'success')
       navigate(`/handoff?patientId=${patient.id}`)
     },
-    onError: (e: any) => toast(e?.response?.data?.message ?? 'Error', 'error'),
+    onError: (e: unknown) => toast(apiErrorMessage(e, 'Error'), 'error'),
   })
 
   useEffect(() => {
@@ -324,6 +328,7 @@ export function CampaignPatientsPage() {
   const initialFilter     = (searchParams.get('status') ?? 'ALL') as FilterKey
   const [filter, setFilter] = useState<FilterKey>(initialFilter)
   const [selected, setSelected] = useState<CampaignPatient | null>(null)
+  const [dismissedDeepLink, setDismissedDeepLink] = useState<string | null>(null)
 
   const { data, isLoading, isError, refetch } = useQuery<Campaign & { patients: CampaignPatient[] }>({
     queryKey: ['campaign', campaignId],
@@ -336,15 +341,8 @@ export function CampaignPatientsPage() {
   // conversation as soon as the campaign loads. Runs once per patientId so the
   // 5s refetch can't reopen a drawer the user just closed.
   const deepLinkId = searchParams.get('patientId')
-  const openedDeepLink = useRef<string | null>(null)
-
-  useEffect(() => {
-    if (!deepLinkId || openedDeepLink.current === deepLinkId) return
-    const match = data?.patients?.find(p => p.id === deepLinkId)
-    if (!match) return
-    openedDeepLink.current = deepLinkId
-    setSelected(match)
-  }, [deepLinkId, data])
+  const selectedPatient = selected ?? (deepLinkId && deepLinkId !== dismissedDeepLink
+    ? data?.patients?.find(p => p.id === deepLinkId) ?? null : null)
 
   if (isLoading) return <PageLoader />
 
@@ -444,11 +442,11 @@ export function CampaignPatientsPage() {
         </div>
       )}
 
-      {selected && (
+      {selectedPatient && (
         <ConversationDrawer
-          patient={selected}
+          patient={selectedPatient}
           campaignId={campaignId!}
-          onClose={() => setSelected(null)}
+          onClose={() => { setDismissedDeepLink(deepLinkId); setSelected(null) }}
         />
       )}
     </div>

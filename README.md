@@ -19,7 +19,7 @@ npm run build
 npm run lint
 ```
 
-`npm run lint` currently reports existing errors outside the booking flow. Treat this as outstanding quality work; a successful build or booking test does not clear it.
+CI runs the complete lint, test, build, and production dependency audit checks.
 
 ## Booking confirmation
 

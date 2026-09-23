@@ -5,6 +5,7 @@ import {
   Clock, AlertCircle, RefreshCw,
 } from 'lucide-react'
 import { getHandoffSessions, sendHandoffMessage, resolveHandoff } from '../api'
+import { apiErrorMessage } from '../api/error'
 import { useToast } from '../store/toast'
 import { PageHeader, PageLoader } from '../components/ui'
 
@@ -36,16 +37,19 @@ function parseContent(content: string): string | null {
   const t = content.trim()
   if ((t.startsWith('[') || t.startsWith('{')) && (t.endsWith(']') || t.endsWith('}'))) {
     try {
-      const parsed = JSON.parse(t)
+      const parsed: unknown = JSON.parse(t)
       if (Array.isArray(parsed)) {
         const text = parsed
-          .filter((b: any) => b.type === 'text' && b.text?.trim())
-          .map((b: any) => b.text.trim())
+          .filter((b): b is { type: 'text'; text: string } =>
+            typeof b === 'object' && b !== null && b.type === 'text' &&
+            typeof b.text === 'string' && !!b.text.trim())
+          .map(b => b.text.trim())
           .join('\n\n')
         return text || null
       }
-      if (parsed?.type === 'tool_result' || parsed?.type === 'tool_use') return null
-    } catch {}
+      if (typeof parsed === 'object' && parsed !== null && 'type' in parsed &&
+          (parsed.type === 'tool_result' || parsed.type === 'tool_use')) return null
+    } catch { return content }
   }
   return content
 }
@@ -108,7 +112,7 @@ function ConversationPanel({
       setDraft('')
       qc.invalidateQueries({ queryKey: ['handoff-sessions'] })
     },
-    onError: (e: any) => toast(e?.response?.data?.message ?? 'Send failed', 'error'),
+    onError: (e: unknown) => toast(apiErrorMessage(e, 'Send failed'), 'error'),
   })
 
   const resolveMut = useMutation({
@@ -118,7 +122,7 @@ function ConversationPanel({
       toast('Session resolved', 'success')
       onClose()
     },
-    onError: (e: any) => toast(e?.response?.data?.message ?? 'Error', 'error'),
+    onError: (e: unknown) => toast(apiErrorMessage(e, 'Error'), 'error'),
   })
 
   const handleSend = useCallback(() => {

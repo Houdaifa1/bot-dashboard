@@ -4,7 +4,7 @@ export interface Clinic {
   isActive: boolean; createdAt: string; updatedAt: string;
   campaignDelayHours: number; reminderCount: number;
   reminderIntervalHours: number; aiMaxTurns: number;
-  notificationPhone?: string;
+  notificationPhone?: string | null;
 }
 
 export interface BotMessage {

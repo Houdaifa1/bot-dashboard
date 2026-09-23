@@ -284,4 +284,4 @@ const translations = { FR: fr, EN: en }
 
 export type TKey = keyof typeof fr
 
-export const t = (lang: Lang, key: TKey): any => translations[lang][key] ?? key
+export const t = (lang: Lang, key: TKey): string => translations[lang][key] ?? key

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Pencil, Trash2, RotateCcw, Loader2, ToggleLeft } from 'lucide-react'
 import { getFaqs, createFaq, updateFaq, deleteFaq, hardDeleteFaq } from '../api'
@@ -62,17 +62,10 @@ function FaqModal({
   initial: GroupForm | null
   lang: 'FR' | 'EN'
 }) {
-  const [form, setForm] = useState<GroupForm>(emptyForm())
+  const [form, setForm] = useState<GroupForm>(() => initial ?? emptyForm())
   const [dirty, setDirty] = useState(false)
 
-  useEffect(() => {
-    if (open) {
-      setForm(initial ?? emptyForm())
-      setDirty(false)
-    }
-  }, [open, initial])
-
-  const set = (field: keyof GroupForm, value: any) => {
+  const set = <K extends keyof GroupForm>(field: K, value: GroupForm[K]) => {
     setForm(f => ({ ...f, [field]: value }))
     setDirty(true)
   }
@@ -472,7 +465,7 @@ export function FaqsPage() {
       )}
 
       {/* Add / Edit modal */}
-      <FaqModal
+      {modalOpen && <FaqModal
         open={modalOpen}
         onClose={() => { setModalOpen(false); setEditing(null) }}
         onSave={handleSave}
@@ -487,7 +480,7 @@ export function FaqsPage() {
           displayOrder: editing.displayOrder,
         } : null}
         lang={lang}
-      />
+      />}
 
       {/* Deactivate confirm */}
       <ConfirmDialog

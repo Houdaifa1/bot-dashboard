@@ -1,22 +1,8 @@
-import { createContext, useContext, useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import type { ReactNode } from 'react'
 import type { AdminUser } from '../types'
-
-export type Lang = 'FR' | 'EN'
-export type Theme = 'light' | 'dark'
-
-interface AuthStore {
-    token: string | null
-    admin: AdminUser | null
-    lang: Lang
-    theme: Theme
-    setAuth: (token: string, admin: AdminUser) => void
-    clearAuth: () => void
-    setLang: (lang: Lang) => void
-    setTheme: (theme: Theme) => void
-}
-
-const AuthContext = createContext<AuthStore | null>(null)
+import { AuthContext } from './auth'
+import type { Lang, Theme } from './auth'
 const savedTheme = localStorage.getItem('theme')
 if (savedTheme !== 'light') {
     document.documentElement.classList.add('dark')
@@ -71,10 +57,4 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             {children}
         </AuthContext.Provider>
     )
-}
-
-export const useAuth = () => {
-    const ctx = useContext(AuthContext)
-    if (!ctx) throw new Error('useAuth outside AuthProvider')
-    return ctx
 }

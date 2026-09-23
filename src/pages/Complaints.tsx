@@ -9,6 +9,7 @@ import {
   getComplaints, updateComplaintStatus, updateComplaintStaffNote,
   updateComplaintStatusForPatient,
 } from '../api'
+import { apiErrorMessage } from '../api/error'
 import { useAuth } from '../store/auth'
 import { useToast } from '../store/toast'
 import { t } from '../i18n'
@@ -432,9 +433,9 @@ export function ComplaintsPage() {
       )
       return { previous }
     },
-    onError: (err: any, _vars, ctx) => {
+    onError: (err: unknown, _vars, ctx) => {
       if (ctx?.previous) queryClient.setQueryData(['complaints'], ctx.previous)
-      toast(err?.response?.data?.message ?? t(lang, 'errorSaving'), 'error')
+      toast(apiErrorMessage(err, t(lang, 'errorSaving')), 'error')
     },
     onSuccess: () => toast(t(lang, 'complaints_status_updated'), 'success'),
     onSettled: invalidate,
@@ -453,9 +454,9 @@ export function ComplaintsPage() {
       )
       return { previous }
     },
-    onError: (err: any, _vars, ctx) => {
+    onError: (err: unknown, _vars, ctx) => {
       if (ctx?.previous) queryClient.setQueryData(['complaints'], ctx.previous)
-      toast(err?.response?.data?.message ?? t(lang, 'errorSaving'), 'error')
+      toast(apiErrorMessage(err, t(lang, 'errorSaving')), 'error')
     },
     onSuccess: (res) => {
       toast(`${res.count} ${t(lang, 'complaints_resolveAll_done')}`, 'success')
@@ -472,7 +473,7 @@ export function ComplaintsPage() {
       toast(t(lang, 'complaints_note_saved'), 'success')
       setNoteTarget(null)
     },
-    onError: (err: any) => toast(err?.response?.data?.message ?? t(lang, 'errorSaving'), 'error'),
+    onError: (err: unknown) => toast(apiErrorMessage(err, t(lang, 'errorSaving')), 'error'),
   })
 
   // Counters always describe the whole dataset, never the current filter.

@@ -123,20 +123,20 @@ function LangEditor({
   const { lang } = useAuth()
   const { toast } = useToast()
   const queryClient = useQueryClient()
-  const [value, setValue] = useState(body)
-  const [dirty, setDirty] = useState(false)
-
-  // Sync when body changes from parent re-render (but only if not dirty)
-  useMemo(() => {
-    if (body !== value && !dirty) setValue(body)
-  }, [body])
+  const [draft, setDraft] = useState<string | null>(null)
+  const value = draft ?? body
+  const dirty = draft !== null && draft !== body
 
   const mutation = useMutation({
     mutationFn: () => updateBotMessage(clinicId, keyName, language, value),
-    onSuccess: () => {
+    onSuccess: updated => {
+      queryClient.setQueryData<BotMessage[]>(['bot-messages', clinicId, language], previous =>
+        previous?.some(message => message.key === keyName)
+          ? previous.map(message => message.key === keyName ? updated : message)
+          : [...(previous ?? []), updated])
       queryClient.invalidateQueries({ queryKey: ['bot-messages', clinicId] })
       toast(t(lang, 'msg_saved'), 'success')
-      setDirty(false)
+      setDraft(null)
     },
     onError: () => toast(t(lang, 'errorSaving'), 'error'),
   })
@@ -158,7 +158,7 @@ function LangEditor({
       <textarea
         className="input min-h-[72px] resize-y text-sm leading-relaxed"
         value={value}
-        onChange={e => { setValue(e.target.value); setDirty(true) }}
+        onChange={e => setDraft(e.target.value)}
       />
       <div className="flex justify-end">
         <button
@@ -192,17 +192,19 @@ function ButtonInput({
   const { lang } = useAuth()
   const { toast } = useToast()
   const queryClient = useQueryClient()
-  const [value, setValue] = useState(body)
-
-  useMemo(() => {
-    if (body !== value) setValue(body)
-  }, [body])
+  const [draft, setDraft] = useState<string | null>(null)
+  const value = draft ?? body
 
   const mutation = useMutation({
     mutationFn: () => updateBotMessage(clinicId, keyName, language, value),
-    onSuccess: () => {
+    onSuccess: updated => {
+      queryClient.setQueryData<BotMessage[]>(['bot-messages', clinicId, language], previous =>
+        previous?.some(message => message.key === keyName)
+          ? previous.map(message => message.key === keyName ? updated : message)
+          : [...(previous ?? []), updated])
       queryClient.invalidateQueries({ queryKey: ['bot-messages', clinicId] })
       toast(t(lang, 'msg_saved'), 'success')
+      setDraft(null)
     },
     onError: () => toast(t(lang, 'errorSaving'), 'error'),
   })
@@ -216,7 +218,7 @@ function ButtonInput({
         <input
           className="input h-9 text-sm flex-1"
           value={value}
-          onChange={e => setValue(e.target.value)}
+          onChange={e => setDraft(e.target.value)}
           onBlur={() => {
             if (value !== body) mutation.mutate()
           }}

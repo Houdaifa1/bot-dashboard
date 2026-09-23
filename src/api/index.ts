@@ -1,5 +1,5 @@
 import axios from 'axios'
-import type { ComplaintStatus } from '../types'
+import type { BookingRequestStatus, BotMessage, Clinic, ComplaintStatus, FAQ, LoginResponse } from '../types'
 
 // An explicit empty VITE_API_URL uses the current origin (the local Caddy proxy).
 // The development fallback keeps local Vite requests away from the hosted API.
@@ -27,12 +27,12 @@ api.interceptors.response.use(
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 export const login = (email: string, password: string) =>
-  api.post('/api/admin/v1/auth/login', { email, password }).then(r => r.data)
+  api.post<LoginResponse>('/api/admin/v1/auth/login', { email, password }).then(r => r.data)
 
 // ── Clinic ────────────────────────────────────────────────────────────────────
 export const getClinic = () =>
   api.get('/api/admin/v1/clinics').then(r => r.data)
-export const updateClinic = (data: any) =>
+export const updateClinic = (data: Partial<Clinic>) =>
   api.patch('/api/admin/v1/clinics', data).then(r => r.data)
 
 // ── Bot Messages ──────────────────────────────────────────────────────────────
@@ -41,14 +41,14 @@ export const getBotMessages = (clinicId: string, language?: string) =>
     params: language ? { language } : {},
   }).then(r => r.data)
 export const updateBotMessage = (clinicId: string, key: string, language: string, body: string) =>
-  api.patch(`/api/admin/v1/clinic/${clinicId}/messages/${key}/${language}`, { body }).then(r => r.data)
+  api.patch<BotMessage>(`/api/admin/v1/clinic/${clinicId}/messages/${key}/${language}`, { body }).then(r => r.data)
 
 // ── FAQs ──────────────────────────────────────────────────────────────────────
 export const getFaqs = (language?: string) =>
   api.get('/api/admin/v1/faqs', { params: { ...(language ? { language } : {}), includeInactive: 'true' } }).then(r => r.data)
-export const createFaq = (data: any) =>
+export const createFaq = (data: Pick<FAQ, 'question' | 'answer' | 'keywords' | 'language' | 'displayOrder'>) =>
   api.post('/api/admin/v1/faqs', data).then(r => r.data)
-export const updateFaq = (id: string, data: any) =>
+export const updateFaq = (id: string, data: Partial<FAQ>) =>
   api.patch(`/api/admin/v1/faqs/${id}`, data).then(r => r.data)
 export const deleteFaq = (id: string) =>
   api.delete(`/api/admin/v1/faqs/${id}`).then(r => r.data)
@@ -68,7 +68,19 @@ export const getCampaigns = () =>
   api.get('/api/admin/v1/campaigns').then(r => r.data)
 export const getCampaign = (id: string) =>
   api.get(`/api/admin/v1/campaigns/${id}`).then(r => r.data)
-export const createCampaign = (data: any) =>
+export interface CreateCampaignInput {
+  name: string
+  onlyVerifiedNumbers: boolean
+  filterMotifs?: string[]
+  filterCinPassports?: string[]
+  filterPhoneNumbers?: string[]
+  filterDoctors?: string[]
+  filterDateFrom?: string
+  filterDateTo?: string
+  scheduledStartAt?: string
+  delayHours?: number
+}
+export const createCampaign = (data: CreateCampaignInput) =>
   api.post('/api/admin/v1/campaigns', data).then(r => r.data)
 export const launchCampaign = (id: string) =>
   api.post(`/api/admin/v1/campaigns/${id}/launch`).then(r => r.data)
@@ -79,12 +91,22 @@ export const cancelCampaignSchedule = (id: string) =>
 export const deleteCampaign = (id: string) =>
   api.delete(`/api/admin/v1/campaigns/${id}`).then(r => r.data)
 export const previewCampaign = (id: string) =>
-  api.get(`/api/admin/v1/campaigns/${id}/preview`).then(r => r.data)
+  api.get<CampaignPreview>(`/api/admin/v1/campaigns/${id}/preview`).then(r => r.data)
+export interface CampaignPreview {
+  count: number
+  patients: {
+    patient_id: number
+    patient: string
+    prestation: string
+    medecin_traitant: string
+    numeroTelephonePrincipale: string
+  }[]
+}
 export const previewCampaignFilters = (filters: {
   filterMotifs?: string[]; filterCinPassports?: string[]; filterPhoneNumbers?: string[]
   onlyVerifiedNumbers?: boolean; filterDateFrom?: string; filterDateTo?: string; filterDoctors?: string[]
 }) =>
-  api.post('/api/admin/v1/campaigns/preview-filters', filters).then(r => r.data)
+  api.post<CampaignPreview>('/api/admin/v1/campaigns/preview-filters', filters).then(r => r.data)
 export const getCampaignTargetingOptions = (): Promise<{
   specialties: { specialityId: number; specialityLabel: string }[]
   doctors: { doctorId: number; doctorLabel: string; specialityIds: number[] }[]
@@ -99,7 +121,7 @@ export const takeOverPatientConversation = (campaignId: string, patientId: strin
 
 
 // ── Complaints ────────────────────────────────────────────────────────────────
-export const getComplaints = (params?: any) =>
+export const getComplaints = (params?: Record<string, string>) =>
   api.get('/api/admin/v1/complaints', { params }).then(r => r.data)
 export const getComplaint = (id: string) =>
   api.get(`/api/admin/v1/complaints/${id}`).then(r => r.data)
@@ -113,7 +135,7 @@ export const updateComplaintStatusForPatient = (campaignPatientId: string, statu
     .then(r => r.data as { count: number })
 
 // ── Booking Requests ──────────────────────────────────────────────────────────
-export const getBookingRequests = (params?: any) =>
+export const getBookingRequests = (params?: { status?: BookingRequestStatus; campaignId?: string }) =>
   api.get('/api/admin/v1/booking-requests', { params }).then(r => r.data)
 export const getBookingRequest = (id: string) =>
   api.get(`/api/admin/v1/booking-requests/${id}`).then(r => r.data)

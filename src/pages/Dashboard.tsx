@@ -4,8 +4,15 @@ import { Link } from 'react-router-dom'
 import { getBookingRequests } from '../api'
 import { useAuth } from '../store/auth'
 import { t } from '../i18n'
+import type { TKey } from '../i18n'
 import { PageLoader } from '../components/ui'
-import type { BookingRequest } from '../types'
+import type { BookingRequest, BookingRequestStatus } from '../types'
+
+const BOOKING_STATUS_KEY: Record<BookingRequestStatus, TKey> = {
+  PENDING: 'bookingRequests_status_pending',
+  CONFIRMED: 'bookingRequests_status_confirmed',
+  REJECTED: 'bookingRequests_status_rejected',
+}
 
 interface StatCardProps {
   label: string
@@ -144,7 +151,7 @@ export function DashboardPage() {
                         booking.status === 'CONFIRMED' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
                         'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
                       }`}>
-                        {t(lang, `bookingRequests_status_${booking.status.toLowerCase()}` as any)}
+                        {t(lang, BOOKING_STATUS_KEY[booking.status])}
                       </span>
                     </td>
                   </tr>

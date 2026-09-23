@@ -1,14 +1,11 @@
-import { createContext, useContext, useState } from 'react'
+import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { CheckCircle, XCircle, AlertTriangle, X } from 'lucide-react'
-
-export type ToastType = 'success' | 'error' | 'warning'
+import { ToastContext } from './toast'
+import type { ToastType } from './toast'
 
 interface Toast { id: number; message: string; type: ToastType }
 
-interface ToastCtx { toast: (msg: string, type?: ToastType) => void }
-
-const ToastContext = createContext<ToastCtx | null>(null)
 
 let counter = 0
 
@@ -44,10 +41,4 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       </div>
     </ToastContext.Provider>
   )
-}
-
-export const useToast = () => {
-  const ctx = useContext(ToastContext)
-  if (!ctx) throw new Error('useToast outside ToastProvider')
-  return ctx
 }

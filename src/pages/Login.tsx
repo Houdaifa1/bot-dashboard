@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../store/auth'
 import { useToast } from '../store/toast'
 import { login } from '../api'
+import { apiErrorCode, apiErrorStatus } from '../api/error'
 import { t } from '../i18n'
 
 export function LoginPage() {
@@ -25,16 +26,16 @@ export function LoginPage() {
       setAuth(data.access_token, data.admin)
       toast(lang === 'FR' ? 'Connexion réussie' : 'Signed in successfully', 'success')
       navigate('/')
-    } catch (err: any) {
+    } catch (err: unknown) {
       let message = t(lang, 'login_error')
-      const status = err?.response?.status
-      const code = err?.code
+      const status = apiErrorStatus(err)
+      const code = apiErrorCode(err)
 
       if (status === 401) {
         message = lang === 'FR' ? 'Email ou mot de passe incorrect' : 'Invalid email or password'
       } else if (status === 429) {
         message = lang === 'FR' ? 'Trop de tentatives. Réessayez plus tard.' : 'Too many attempts. Try again later.'
-      } else if (status >= 500) {
+      } else if (status !== undefined && status >= 500) {
         message = lang === 'FR' ? 'Erreur serveur. Réessayez plus tard.' : 'Server error. Please try again later.'
       } else if (code === 'ERR_NETWORK') {
         message = lang === 'FR' ? 'Impossible de joindre le serveur' : 'Cannot reach server'
