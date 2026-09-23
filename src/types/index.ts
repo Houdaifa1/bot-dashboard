@@ -112,14 +112,22 @@ export type BookingRequestStatus = 'PENDING' | 'CONFIRMED' | 'REJECTED'
 
 export interface BookingRequest {
   id: string; campaignPatientId: string; clinicId: string;
+  source?: 'CAMPAIGN' | 'INBOUND';
+  patientName?: string | null; patientPhone?: string | null;
+  language?: 'EN' | 'FR' | 'AR' | null;
+  clinopsPatientId?: number | null;
+  requestedDate?: string | null; requestedTime?: string | null;
+  externalAttemptAt?: string | null;
+  externalAttemptState?: 'SUBMITTING' | 'RECONCILE' | 'CONFIRMED' | null;
   appointmentId?: string | null;
   preferredSpecialty?: string | null; preferredDoctor?: string | null;
   preferredDateRange?: string | null; reason?: string | null;
   rawPatientRequest: string; status: BookingRequestStatus;
   createdAt: string; updatedAt: string; confirmedAt?: string | null;
   campaignPatient?: {
-    id: string; patientName: string; phone: string; campaignId: string;
-    visitDate: string; prestation: string; medecinTraitant: string;
+    id: string | null; patientName: string; phone: string; campaignId: string | null;
+    visitDate: string | null; prestation: string | null; medecinTraitant: string | null;
+    clinopsPatientId?: number | null;
   };
   appointment?: {
     id: string; appointmentDate: string; appointmentTime: string;

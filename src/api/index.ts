@@ -1,7 +1,10 @@
 import axios from 'axios'
 import type { ComplaintStatus } from '../types'
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'https://api.houdaifa.dev'
+// An explicit empty VITE_API_URL uses the current origin (the local Caddy proxy).
+// The development fallback keeps local Vite requests away from the hosted API.
+const BASE_URL = import.meta.env.VITE_API_URL ??
+  (import.meta.env.DEV ? 'http://localhost:3000' : 'https://api.houdaifa.dev')
 export const api = axios.create({ baseURL: BASE_URL })
 
 api.interceptors.request.use((config) => {
@@ -114,7 +117,16 @@ export const getBookingRequests = (params?: any) =>
   api.get('/api/admin/v1/booking-requests', { params }).then(r => r.data)
 export const getBookingRequest = (id: string) =>
   api.get(`/api/admin/v1/booking-requests/${id}`).then(r => r.data)
-export const confirmBookingRequest = (id: string, data: { appointmentDate: string; appointmentTime: string; message?: string }) =>
+export interface ConfirmBookingRequestInput {
+  appointmentDate: string
+  appointmentTime: string
+  patientId: number
+  specialityId: number
+  motif: string
+  doctorName: string
+  message?: string
+}
+export const confirmBookingRequest = (id: string, data: ConfirmBookingRequestInput) =>
   api.post(`/api/admin/v1/booking-requests/${id}/confirm`, data).then(r => r.data)
 export const rejectBookingRequest = (id: string, data?: { message?: string; language?: string; silent?: boolean }) =>
   api.post(`/api/admin/v1/booking-requests/${id}/reject`, data ?? {}).then(r => r.data)

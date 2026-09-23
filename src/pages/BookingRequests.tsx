@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Calendar, Clock, RefreshCw, Loader2, Trash2,
@@ -10,12 +10,16 @@ import {
   deleteBookingRequest,
   confirmBookingRequest,
   rejectBookingRequest,
+  getCampaignTargetingOptions,
 } from '../api'
+import type { ConfirmBookingRequestInput } from '../api'
 import { useAuth } from '../store/auth'
 import { useToast } from '../store/toast'
 import { t } from '../i18n'
 import { PageHeader, PageLoader, Empty, Modal } from '../components/ui'
 import type { BookingRequest, BookingRequestStatus } from '../types'
+import { initialConfirmation, validateConfirmation } from './bookingConfirmation'
+import type { BookingOptions, ConfirmationErrors } from './bookingConfirmation'
 
 // ── Status config ─────────────────────────────────────────────────────────────
 
@@ -29,9 +33,23 @@ const STATUS_CONFIG: Record<BookingRequestStatus, { color: string; label: string
 
 type MsgLang = 'EN' | 'FR' | 'AR'
 
+function errorMessage(error: unknown, fallback: string): string {
+  if (typeof error === 'object' && error !== null && 'response' in error) {
+    const response = error.response
+    if (typeof response === 'object' && response !== null && 'data' in response) {
+      const data = response.data
+      if (typeof data === 'object' && data !== null && 'message' in data) {
+        if (typeof data.message === 'string') return data.message
+        if (Array.isArray(data.message)) return data.message.join(', ')
+      }
+    }
+  }
+  return fallback
+}
+
 function buildConfirmMessage(lang: MsgLang, name: string, date: string, time: string): string {
   const fmtDate = date
-    ? new Date(date).toLocaleDateString(
+    ? new Date(`${date}T12:00:00`).toLocaleDateString(
         lang === 'FR' ? 'fr-MA' : lang === 'AR' ? 'ar-MA' : 'en-GB',
         { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }
       )
@@ -40,12 +58,12 @@ function buildConfirmMessage(lang: MsgLang, name: string, date: string, time: st
   const n = name || 'Patient'
 
   if (lang === 'FR') {
-    return `Bonjour ${n},\n\nNous avons le plaisir de vous confirmer votre rendez-vous.\n\n📅 Date : ${fmtDate}\n🕐 Heure : ${fmtTime}\n\nMerci de vous présenter 10 minutes avant l'heure prévue. En cas d'empêchement, veuillez nous contacter dès que possible.\n\nÀ bientôt !`
+    return `Bonjour ${n},\n\nNous vous confirmons votre rendez-vous.\n\n📅 Date : ${fmtDate}\n🕐 Heure : ${fmtTime}\n\nSi vous devez modifier ce rendez-vous, veuillez contacter la clinique.\n\nÀ bientôt !`
   }
   if (lang === 'AR') {
-    return `مرحباً ${n}،\n\nيسعدنا تأكيد موعدكم.\n\n📅 التاريخ: ${fmtDate}\n🕐 الوقت: ${fmtTime}\n\nنرجو منكم الحضور قبل 10 دقائق من الموعد المحدد. في حال وجود أي عائق، يرجى التواصل معنا في أقرب وقت.\n\nإلى اللقاء!`
+    return `مرحباً ${n}،\n\nنؤكد موعدكم.\n\n📅 التاريخ: ${fmtDate}\n🕐 الوقت: ${fmtTime}\n\nإذا احتجتم إلى تغيير الموعد، يرجى الاتصال بالعيادة.\n\nإلى اللقاء!`
   }
-  return `Hello ${n},\n\nWe're pleased to confirm your appointment.\n\n📅 Date: ${fmtDate}\n🕐 Time: ${fmtTime}\n\nPlease arrive 10 minutes before your scheduled time. If you need to cancel, please contact us as soon as possible.\n\nSee you soon!`
+  return `Hello ${n},\n\nYour appointment is confirmed.\n\n📅 Date: ${fmtDate}\n🕐 Time: ${fmtTime}\n\nIf you need to change this appointment, please contact the clinic.\n\nSee you soon!`
 }
 
 function buildRejectMessage(lang: MsgLang, name: string): string {
@@ -74,9 +92,6 @@ function WhatsAppPreview({ message }: { message: string }) {
             <span className="text-[10px] text-neutral-500 dark:text-neutral-400">
               {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </span>
-            <svg viewBox="0 0 16 11" className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400 fill-current">
-              <path d="M11.071.653a.5.5 0 0 0-.707 0L4.501 6.516l-2.47-2.47a.5.5 0 0 0-.707.707l2.824 2.823a.5.5 0 0 0 .707 0l6.216-6.216a.5.5 0 0 0 0-.707zM14.07.653a.5.5 0 0 0-.707 0L7.5 6.516l-.47-.47a.5.5 0 0 0-.707.707l.824.823a.5.5 0 0 0 .707 0l6.216-6.216a.5.5 0 0 0 0-.707z"/>
-            </svg>
           </div>
         </div>
       </div>
@@ -110,39 +125,46 @@ function ReasonCell({ text }: { text: string }) {
 interface ConfirmModalProps {
   booking: BookingRequest
   onClose: () => void
-  onConfirm: (data: { appointmentDate: string; appointmentTime: string; message?: string }) => void
+  onConfirm: (data: ConfirmBookingRequestInput) => void
   loading: boolean
+  options?: BookingOptions
+  optionsLoading: boolean
+  optionsError: boolean
+  onRetryOptions: () => void
 }
 
-function ConfirmModal({ booking, onClose, onConfirm, loading }: ConfirmModalProps) {
-  const [date, setDate]         = useState('')
-  const [time, setTime]         = useState('')
-  const [lang, setLang]         = useState<MsgLang>('FR')
+function ConfirmModal({ booking, onClose, onConfirm, loading, options, optionsLoading, optionsError, onRetryOptions }: ConfirmModalProps) {
+  const [fields, setFields]     = useState(() => initialConfirmation(booking))
+  const [lang, setLang]         = useState<MsgLang>(booking.language ?? 'FR')
   const [mode, setMode]         = useState<'default' | 'custom'>('default')
   const [custom, setCustom]     = useState('')
+  const [customDirty, setCustomDirty] = useState(false)
+  const [messageReviewed, setMessageReviewed] = useState(false)
   const [preview, setPreview]   = useState(false)
-  const [errors, setErrors]     = useState<{ date?: string; time?: string }>({})
+  const [errors, setErrors]     = useState<ConfirmationErrors>({})
 
   const patientName = booking.campaignPatient?.patientName ?? ''
-  const defaultMsg  = buildConfirmMessage(lang, patientName, date, time)
-  const finalMsg    = mode === 'default' ? defaultMsg : custom
-
-  // keep custom seeded when switching to custom for first time
-  useEffect(() => {
-    if (mode === 'custom' && !custom) setCustom(defaultMsg)
-  }, [mode])
+  const defaultMsg  = buildConfirmMessage(lang, patientName, fields.appointmentDate, fields.appointmentTime)
+  const finalMsg    = mode === 'custom' && customDirty ? custom : defaultMsg
+  const matchingDoctors = options?.doctors.filter(d => d.specialityIds.includes(fields.specialityId)) ?? []
+  const setField = <K extends keyof typeof fields>(key: K, value: typeof fields[K]) => {
+    setFields(previous => ({ ...previous, [key]: value }))
+    setErrors(previous => ({ ...previous, [key]: undefined }))
+    setMessageReviewed(false)
+  }
 
   const validate = () => {
-    const e: typeof errors = {}
-    if (!date) e.date = 'Select a date.'
-    if (!time) e.time = 'Select a time.'
+    const clinicNow = new Date().toLocaleString('sv-SE', {
+      timeZone: 'Africa/Casablanca', hour12: false,
+    }).replace(' ', 'T')
+    const e = validateConfirmation(fields, options, clinicNow)
     setErrors(e)
     return Object.keys(e).length === 0
   }
 
   const handleSubmit = () => {
     if (!validate()) return
-    onConfirm({ appointmentDate: date, appointmentTime: time, message: finalMsg })
+    onConfirm({ ...fields, motif: fields.motif.trim(), message: finalMsg.trim() || undefined })
   }
 
   return (
@@ -165,6 +187,60 @@ function ConfirmModal({ booking, onClose, onConfirm, loading }: ConfirmModalProp
                 Preferred dates: <span className="font-medium">{booking.preferredDateRange}</span>
               </p>
             )}
+            {booking.rawPatientRequest && (
+              <p className="text-xs text-green-900 dark:text-green-200 mt-2 whitespace-pre-wrap">
+                Patient request: {booking.rawPatientRequest}
+              </p>
+            )}
+          </div>
+        </div>
+
+        {optionsError && (
+          <div role="alert" className="text-sm text-red-700 dark:text-red-300">
+            Could not load ClinOps specialties and doctors.{' '}
+            <button type="button" className="underline" onClick={onRetryOptions}>Try again</button>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label htmlFor="booking-patient-id" className="block text-xs font-medium text-neutral-500 mb-1.5">ClinOps patient ID *</label>
+            <input id="booking-patient-id" type="number" min="1" step="1" className="input h-10 w-full"
+              value={fields.patientId || ''}
+              onChange={e => setField('patientId', Number(e.target.value))} />
+            {errors.patientId && <p className="text-xs text-red-500 mt-1">{errors.patientId}</p>}
+            <p className="text-xs text-neutral-500 mt-1">Verify this ID against the patient record. The backend also checks the phone in ClinOps.</p>
+          </div>
+          <div>
+            <label htmlFor="booking-specialty" className="block text-xs font-medium text-neutral-500 mb-1.5">Specialty *</label>
+            <select id="booking-specialty" className="input h-10 w-full" value={fields.specialityId || ''}
+              disabled={optionsLoading || optionsError}
+              onChange={e => {
+                setFields(previous => ({ ...previous, specialityId: Number(e.target.value), doctorName: '' }))
+                setErrors(previous => ({ ...previous, specialityId: undefined, doctorName: undefined }))
+                setMessageReviewed(false)
+              }}>
+              <option value="">{optionsLoading ? 'Loading specialties…' : 'Select specialty'}</option>
+              {options?.specialties.map(s => <option key={s.specialityId} value={s.specialityId}>{s.specialityLabel}</option>)}
+            </select>
+            {errors.specialityId && <p className="text-xs text-red-500 mt-1">{errors.specialityId}</p>}
+          </div>
+          <div>
+            <label htmlFor="booking-doctor" className="block text-xs font-medium text-neutral-500 mb-1.5">Doctor *</label>
+            <select id="booking-doctor" className="input h-10 w-full" value={fields.doctorName}
+              disabled={!fields.specialityId || optionsLoading || optionsError}
+              onChange={e => setField('doctorName', e.target.value)}>
+              <option value="">Select doctor</option>
+              {matchingDoctors.map(d => <option key={d.doctorId} value={d.doctorLabel}>{d.doctorLabel}</option>)}
+            </select>
+            {errors.doctorName && <p className="text-xs text-red-500 mt-1">{errors.doctorName}</p>}
+            {booking.preferredDoctor && <p className="text-xs text-neutral-500 mt-1">Patient preference: {booking.preferredDoctor}</p>}
+          </div>
+          <div>
+            <label htmlFor="booking-motif" className="block text-xs font-medium text-neutral-500 mb-1.5">Reviewed booking reason (motif) *</label>
+            <input id="booking-motif" className="input h-10 w-full" maxLength={250} value={fields.motif}
+              onChange={e => setField('motif', e.target.value)} />
+            {errors.motif && <p className="text-xs text-red-500 mt-1">{errors.motif}</p>}
           </div>
         </div>
 
@@ -176,12 +252,11 @@ function ConfirmModal({ booking, onClose, onConfirm, loading }: ConfirmModalProp
             </label>
             <input
               type="date"
-              className={`input h-10 w-full ${errors.date ? 'border-red-400 dark:border-red-500' : ''}`}
-              value={date}
-              min={new Date().toISOString().split('T')[0]}
-              onChange={e => { setDate(e.target.value); setErrors(p => ({ ...p, date: undefined })) }}
+              className={`input h-10 w-full ${errors.appointmentDate ? 'border-red-400 dark:border-red-500' : ''}`}
+              value={fields.appointmentDate}
+              onChange={e => setField('appointmentDate', e.target.value)}
             />
-            {errors.date && <p className="text-xs text-red-500 mt-1 flex items-center gap-1"><AlertCircle size={11} />{errors.date}</p>}
+            {errors.appointmentDate && <p className="text-xs text-red-500 mt-1 flex items-center gap-1"><AlertCircle size={11} />{errors.appointmentDate}</p>}
           </div>
           <div>
             <label className="block text-xs font-medium text-neutral-500 mb-1.5">
@@ -189,11 +264,11 @@ function ConfirmModal({ booking, onClose, onConfirm, loading }: ConfirmModalProp
             </label>
             <input
               type="time"
-              className={`input h-10 w-full ${errors.time ? 'border-red-400 dark:border-red-500' : ''}`}
-              value={time}
-              onChange={e => { setTime(e.target.value); setErrors(p => ({ ...p, time: undefined })) }}
+              className={`input h-10 w-full ${errors.appointmentTime ? 'border-red-400 dark:border-red-500' : ''}`}
+              value={fields.appointmentTime}
+              onChange={e => setField('appointmentTime', e.target.value)}
             />
-            {errors.time && <p className="text-xs text-red-500 mt-1 flex items-center gap-1"><AlertCircle size={11} />{errors.time}</p>}
+            {errors.appointmentTime && <p className="text-xs text-red-500 mt-1 flex items-center gap-1"><AlertCircle size={11} />{errors.appointmentTime}</p>}
           </div>
         </div>
 
@@ -209,7 +284,7 @@ function ConfirmModal({ booking, onClose, onConfirm, loading }: ConfirmModalProp
               <select
                 className="input h-8 text-xs px-2 w-auto"
                 value={lang}
-                onChange={e => setLang(e.target.value as MsgLang)}
+                onChange={e => { setLang(e.target.value as MsgLang); setMessageReviewed(false) }}
               >
                 <option value="EN">🇬🇧 English</option>
                 <option value="FR">🇫🇷 Français</option>
@@ -225,7 +300,7 @@ function ConfirmModal({ booking, onClose, onConfirm, loading }: ConfirmModalProp
                 </button>
                 <button
                   className={`px-3 h-8 font-medium transition-colors ${mode === 'custom' ? 'bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900' : 'bg-white dark:bg-neutral-900 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300'}`}
-                  onClick={() => setMode('custom')}
+                  onClick={() => { setMode('custom'); setMessageReviewed(false) }}
                 >
                   Custom
                 </button>
@@ -248,9 +323,17 @@ function ConfirmModal({ booking, onClose, onConfirm, loading }: ConfirmModalProp
               rows={5}
               dir={lang === 'AR' ? 'rtl' : 'ltr'}
               placeholder="Write a custom message…"
-              value={custom}
-              onChange={e => setCustom(e.target.value)}
+              value={customDirty ? custom : defaultMsg}
+              onChange={e => { setCustom(e.target.value); setCustomDirty(true); setMessageReviewed(false) }}
             />
+          )}
+
+          {mode === 'custom' && (
+            <label className="flex items-start gap-2 text-xs text-neutral-600 dark:text-neutral-300">
+              <input type="checkbox" className="mt-0.5" checked={messageReviewed}
+                onChange={e => setMessageReviewed(e.target.checked)} />
+              I reviewed this message against the patient, doctor, date, and time above.
+            </label>
           )}
 
           {/* Preview toggle */}
@@ -271,10 +354,10 @@ function ConfirmModal({ booking, onClose, onConfirm, loading }: ConfirmModalProp
           <button
             className="btn-primary inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 focus-visible:ring-green-500"
             onClick={handleSubmit}
-            disabled={loading}
+            disabled={loading || optionsLoading || optionsError || (mode === 'custom' && !messageReviewed)}
           >
             {loading ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
-            Confirm & send message
+            Confirm appointment
           </button>
         </div>
       </div>
@@ -292,7 +375,7 @@ interface RejectModalProps {
 }
 
 function RejectModal({ booking, onClose, onReject, loading }: RejectModalProps) {
-  const [lang, setLang]       = useState<MsgLang>('FR')
+  const [lang, setLang]       = useState<MsgLang>(booking.language ?? 'FR')
   const [mode, setMode]       = useState<'default' | 'custom' | 'silent'>('default')
   const [custom, setCustom]   = useState('')
   const [preview, setPreview] = useState(false)
@@ -300,10 +383,6 @@ function RejectModal({ booking, onClose, onReject, loading }: RejectModalProps) 
   const patientName = booking.campaignPatient?.patientName ?? ''
   const defaultMsg  = buildRejectMessage(lang, patientName)
   const finalMsg    = mode === 'default' ? defaultMsg : mode === 'custom' ? custom : ''
-
-  useEffect(() => {
-    if (mode === 'custom' && !custom) setCustom(defaultMsg)
-  }, [mode])
 
   const handleSubmit = () => {
     onReject({
@@ -327,7 +406,7 @@ function RejectModal({ booking, onClose, onReject, loading }: RejectModalProps) 
             <p className="text-xs text-red-600/70 dark:text-red-400/60 mt-0.5">
               {mode === 'silent'
                 ? 'The patient will NOT be notified.'
-                : 'A WhatsApp message will be sent to the patient.'}
+                : 'A WhatsApp notification will be attempted. Check delivery separately.'}
             </p>
           </div>
         </div>
@@ -363,7 +442,7 @@ function RejectModal({ booking, onClose, onReject, loading }: RejectModalProps) 
                           : 'bg-neutral-900 dark:bg-neutral-100 text-white dark:text-neutral-900'
                         : 'bg-white dark:bg-neutral-900 text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300'
                     }`}
-                    onClick={() => setMode(m)}
+                    onClick={() => { if (m === 'custom' && !custom) setCustom(defaultMsg); setMode(m) }}
                   >
                     {m}
                   </button>
@@ -472,7 +551,7 @@ function RowActions({ booking, onConfirm, onReject, onDelete }: {
   onReject:  (b: BookingRequest) => void
   onDelete:  (b: BookingRequest) => void
 }) {
-  const isPending = booking.status === 'PENDING'
+  const isPending = booking.status === 'PENDING' && !booking.externalAttemptAt
   return (
     <div className="flex items-center justify-end gap-1.5">
       {isPending && (
@@ -491,13 +570,15 @@ function RowActions({ booking, onConfirm, onReject, onDelete }: {
           </button>
         </>
       )}
-      <button
-        className="h-7 w-7 rounded-md text-neutral-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 inline-flex items-center justify-center transition-colors"
-        onClick={() => onDelete(booking)}
-        title="Delete"
-      >
-        <Trash2 size={13} />
-      </button>
+      {isPending && (
+        <button
+          className="h-7 w-7 rounded-md text-neutral-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 inline-flex items-center justify-center transition-colors"
+          onClick={() => onDelete(booking)}
+          title="Delete"
+        >
+          <Trash2 size={13} />
+        </button>
+      )}
     </div>
   )
 }
@@ -518,20 +599,36 @@ export function BookingRequestsPage() {
     queryKey: ['booking-requests', statusFilter],
     queryFn: () => getBookingRequests(statusFilter !== 'ALL' ? { status: statusFilter } : {}),
   })
+  const optionsQuery = useQuery<BookingOptions>({
+    queryKey: ['booking-targeting-options'],
+    queryFn: getCampaignTargetingOptions,
+    enabled: confirmTarget !== null,
+    retry: false,
+  })
 
   const invalidate = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['booking-requests'] })
   }, [queryClient])
 
   const confirmMut = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: { appointmentDate: string; appointmentTime: string; message?: string } }) =>
+    mutationFn: ({ id, data }: { id: string; data: ConfirmBookingRequestInput }) =>
       confirmBookingRequest(id, data),
     onSuccess: () => {
       invalidate()
-      toast('Appointment confirmed — message sent to patient.', 'success')
+      toast('Appointment confirmed. Verify WhatsApp delivery separately.', 'success')
       setConfirmTarget(null)
     },
-    onError: (err: any) => toast(err?.response?.data?.message ?? 'Failed to confirm.', 'error'),
+    onError: (err: unknown) => {
+      invalidate()
+      toast(errorMessage(err, 'Confirmation failed. Check ClinOps before retrying.'), 'error')
+      if (typeof err !== 'object' || err === null || !('response' in err) ||
+          typeof err.response !== 'object' || err.response === null ||
+          !('status' in err.response) ||
+          (typeof err.response.status === 'number' &&
+            (err.response.status === 409 || err.response.status >= 500))) {
+        setConfirmTarget(null)
+      }
+    },
   })
 
   const rejectMut = useMutation({
@@ -539,10 +636,10 @@ export function BookingRequestsPage() {
       rejectBookingRequest(id, data),
     onSuccess: (_, vars) => {
       invalidate()
-      toast(vars.data.silent ? 'Request rejected silently.' : 'Request rejected — patient notified.', 'success')
+      toast(vars.data.silent ? 'Request rejected silently.' : 'Request rejected. Verify WhatsApp delivery separately.', 'success')
       setRejectTarget(null)
     },
-    onError: (err: any) => toast(err?.response?.data?.message ?? 'Failed to reject.', 'error'),
+    onError: (err: unknown) => { invalidate(); toast(errorMessage(err, 'Failed to reject.'), 'error') },
   })
 
   const deleteMut = useMutation({
@@ -552,7 +649,7 @@ export function BookingRequestsPage() {
       toast('Booking request deleted.', 'success')
       setDeleteTarget(null)
     },
-    onError: (err: any) => toast(err?.response?.data?.message ?? 'Failed to delete.', 'error'),
+    onError: (err: unknown) => { invalidate(); toast(errorMessage(err, 'Failed to delete.'), 'error') },
   })
 
   const formatDate = (dateStr: string) =>
@@ -653,6 +750,11 @@ export function BookingRequestsPage() {
                       <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${statusStyle.color}`}>
                         {statusStyle.label}
                       </span>
+                      {booking.externalAttemptAt && booking.status === 'PENDING' && (
+                        <p className="mt-2 text-xs font-medium text-red-700 dark:text-red-300" role="alert">
+                          ClinOps attempt {booking.externalAttemptState ?? 'unknown'} — reconcile in the clinic system before any action.
+                        </p>
+                      )}
                       {booking.status === 'CONFIRMED' && booking.appointment && (
                         <div className="mt-2 space-y-0.5">
                           <div className="flex items-center gap-1 text-xs text-neutral-500">
@@ -686,6 +788,10 @@ export function BookingRequestsPage() {
           onClose={() => setConfirmTarget(null)}
           onConfirm={data => confirmMut.mutate({ id: confirmTarget.id, data })}
           loading={confirmMut.isPending}
+          options={optionsQuery.data}
+          optionsLoading={optionsQuery.isPending}
+          optionsError={optionsQuery.isError}
+          onRetryOptions={() => { void optionsQuery.refetch() }}
         />
       )}
 

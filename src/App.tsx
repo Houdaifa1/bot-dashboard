@@ -4,7 +4,6 @@ import { AuthProvider, useAuth } from './store/auth'
 import { ToastProvider } from './store/toast'
 import { Shell } from './components/layout/Shell'
 
-// Pages — we'll fill these in one by one
 import { LoginPage }       from './pages/Login'
 import { DashboardPage }   from './pages/Dashboard'
 import { ClinicPage }      from './pages/Clinic'

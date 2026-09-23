@@ -7,6 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "lint:booking": "eslint src/pages/BookingRequests.tsx src/pages/bookingConfirmation.ts",
+    "test": "node --test src/pages/*.test.mjs",
     "preview": "vite preview",
     "deploy": "npm run build && wrangler pages deploy",
     "preview:cloudflare": "wrangler pages dev dist"
